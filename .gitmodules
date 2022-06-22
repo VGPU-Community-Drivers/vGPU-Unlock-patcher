@@ -1,0 +1,3 @@
+[submodule "unlock"]
+	path = unlock
+	url = https://github.com/DualCoder/vgpu_unlock
