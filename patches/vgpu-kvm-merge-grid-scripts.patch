@@ -1,0 +1,84 @@
+diff --git a/init-scripts/post-install b/init-scripts/post-install
+index 719a43e..5cd3575 100644
+--- a/init-scripts/post-install
++++ b/init-scripts/post-install
+@@ -95,6 +95,14 @@ run_install() {
+     printf "\n$nv_daemon_name $target successfully installed.\n"
+ }
+ 
++IS_GRID=$(( 1 ))
++if [ "$IS_GRID" = "1" ]; then
++    run_install nvidia-gridd 1 $tgt
++    if [ `uname -m` = "x86_64" ]; then
++        mkdir -p /var/run/nvidia-topologyd
++        run_install nvidia-topologyd 1 $tgt
++    fi
++fi
+ 
+ IS_VGX=$(( 1 || 1 ))
+ if [ "$IS_VGX" = "1" ]; then
+diff --git a/init-scripts/pre-uninstall b/init-scripts/pre-uninstall
+index 43b8f3c..d870b6c 100644
+--- a/init-scripts/pre-uninstall
++++ b/init-scripts/pre-uninstall
+@@ -93,6 +93,10 @@ run_uninstall() {
+     printf "\n$nv_daemon_name $target successfully uninstalled.\n"
+ }
+ 
++IS_GRID=$(( 1 ))
++if [ "$IS_GRID" = "1" ]; then
++    run_uninstall nvidia-gridd $tgt
++fi
+ 
+ IS_VGX=$(( 1 || 1 ))
+ if [ "$IS_VGX" = "1" ]; then
+diff --git a/nvidia-bug-report.sh b/nvidia-bug-report.sh
+index 4ada681..b729daa 100755
+--- a/nvidia-bug-report.sh
++++ b/nvidia-bug-report.sh
+@@ -503,6 +503,15 @@ append_silent "/etc/sun-release"
+ append_silent "/etc/release"
+ append_silent "/etc/gentoo-release"
+ 
++append_silent "/etc/nvidia/gridd.conf"
++
++if [ -f "/etc/nvidia/nvidia-topologyd.conf" ]; then
++    append "/etc/nvidia/nvidia-topologyd.conf"
++    xml_path=`grep 'OutputPath=' /etc/nvidia/nvidia-topologyd.conf | cut -d'=' -f2`
++    append_silent "$xml_path";
++else
++    append_silent "/var/run/nvidia-topologyd/virtualTopology.xml"
++fi
+ 
+ append "/var/log/nvidia-installer.log"
+ append_silent "/var/log/nvidia-uninstall.log"
+@@ -947,6 +956,29 @@ fi
+     echo ""
+ ) | $GZIP_CMD >> $LOG_FILENAME
+ 
++# get any relevant licensing messages
++
++(
++    echo "____________________________________________"
++    echo ""
++    echo "Scanning log files for licensing messages:"
++
++    search_string_in_logs /var/log/messages nvidia-gridd:
++    search_string_in_logs /var/log/syslog nvidia-gridd:
++
++) | $GZIP_CMD >> $LOG_FILENAME
++
++# get any virtual topology-related messages
++
++(
++    echo "____________________________________________"
++    echo ""
++    echo "Scanning log files for virtual topology information:"
++
++    search_string_in_logs /var/log/messages nvidia-topologyd:
++    search_string_in_logs /var/log/syslog nvidia-topologyd:
++
++) | $GZIP_CMD >> $LOG_FILENAME
+ 
+ # If extra data collection is enabled, dump all active CPU backtraces to be
+ # picked up in dmesg

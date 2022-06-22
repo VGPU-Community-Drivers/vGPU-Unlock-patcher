@@ -1,0 +1,63 @@
+diff --git a/kernel/unlock/vgpu_unlock_hooks.c b/kernel/unlock/vgpu_unlock_hooks.c
+index 9be623f..90a91a9 100644
+--- a/kernel/unlock/vgpu_unlock_hooks.c
++++ b/kernel/unlock/vgpu_unlock_hooks.c
+@@ -738,6 +738,16 @@ static vgpu_unlock_vgpu_t vgpu_unlock_vgpu[] =
+ 	VGPU(0x1e30, 0x143f, "GRID RTX6000-12A"),
+ 	VGPU(0x1e30, 0x1440, "GRID RTX6000-24A"),
+ 
++	/* for testing with Turing */
++	VGPU(0x1e30, 0x13b9, "GRID RTX2070-1"),
++	VGPU(0x1e30, 0x13ba, "GRID RTX2070-2"),
++	VGPU(0x1e30, 0x13bb, "GRID RTX2070-3"),
++	VGPU(0x1e30, 0x13bc, "GRID RTX2070-4"),
++	VGPU(0x1e30, 0x13bd, "GRID RTX2070-5"),
++	VGPU(0x1e30, 0x13be, "GRID RTX2070-6"),
++	VGPU(0x1e30, 0x13cb, "GRID RTX2070-7"),
++	VGPU(0x1e30, 0x13cc, "GRID RTX2070-8"),
++
+ 	/* RTX A6000 (Ampere) */
+ 	VGPU(0x2230, 0x14fa, "NVIDIA RTXA6000-1B"),
+ 	VGPU(0x2230, 0x14fb, "NVIDIA RTXA6000-2B"),
+@@ -769,6 +779,7 @@ static vgpu_unlock_vgpu_t vgpu_unlock_vgpu[] =
+ 	VGPU(0x2230, 0x1519, "NVIDIA RTXA6000-24C"),
+ 	VGPU(0x2230, 0x151a, "NVIDIA RTXA6000-48C"),
+ 
++
+ 	{ 0 } /* Sentinel */
+ };
+ 
+@@ -780,8 +791,8 @@ static const uint8_t vgpu_unlock_magic_start[0x10] = {
+ };
+ 
+ static const uint8_t vgpu_unlock_magic_sacrifice[0x10] = {
+-	0x46, 0x4f, 0x39, 0x49, 0x74, 0x91, 0xd7, 0x0f,
+-	0xbc, 0x65, 0xc2, 0x70, 0xdd, 0xdd, 0x11, 0x54
++	0x9d, 0x72, 0xd9, 0x06, 0xa6, 0x20, 0xf4, 0x39,
++	0xe1, 0x11, 0x7d, 0x17, 0xb4, 0x53, 0x1d, 0x73
+ };
+ 
+ static bool vgpu_unlock_patch_applied = FALSE;
+@@ -800,7 +811,7 @@ static bool vgpu_unlock_key_found = FALSE;
+ extern uint8_t vgpu_unlock_nv_kern_rodata_beg;
+ extern uint8_t vgpu_unlock_nv_kern_rodata_end;
+ 
+-static uint16_t vgpu_unlock_pci_devid_to_vgpu_capable(uint16_t pci_devid)
++uint16_t vgpu_unlock_pci_devid_to_vgpu_capable(uint16_t pci_devid)
+ {
+ 	switch (pci_devid)
+ 	{
+@@ -1117,11 +1128,12 @@ static void vgpu_unlock_apply_patch(void)
+ 
+ 	vgpu_unlock_patch_applied = TRUE;
+ 
+-	LOG(KERN_WARNING "vGPU unlock patch applied.\n");
++	printk(KERN_WARNING "nvidia: vGPU unlock patch applied.\n");
+ 
+ 	return;
+ 
+ failed:
++	printk(KERN_WARNING "nvidia: aborting vGPU unlock patch.\n");
+ 	vgpu_unlock_magic_found = FALSE;
+ 	vgpu_unlock_key_found = FALSE;
+ }

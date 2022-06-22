@@ -1,0 +1,13 @@
+diff --git a/kernel/nvidia/nv.c b/kernel/nvidia/nv.c
+index 74ad0aa..38c9a1d 100644
+--- a/kernel/nvidia/nv.c
++++ b/kernel/nvidia/nv.c
+@@ -2193,7 +2193,7 @@ nvidia_ioctl(
+         {
+             NV_CTL_DEVICE_ONLY(nv);
+ 
+-            rmStatus = rm_perform_version_check(sp, arg_copy, arg_size);
++            rmStatus = NV_OK; //rm_perform_version_check(sp, arg_copy, arg_size);
+             status = ((rmStatus == NV_OK) ? 0 : -EINVAL);
+             break;
+         }
