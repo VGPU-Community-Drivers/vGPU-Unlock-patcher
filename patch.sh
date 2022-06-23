@@ -13,8 +13,14 @@ CP="cp -a --reflink"
 vcfgclone() {
     echo "vcfgclone ${2#0x}:${3#0x} -> ${4#0x}:${5#0x}"
     sed -e '/<pgpu/ b found' -e b -e ':found' -e '/<\/pgpu>/ b clone' -e N -e 'b found' \
-        -e ':clone' -e p -e "s/\(.* deviceId=\"\)${2}\(\" subsystemVendorId=\"\)0x10de\(\" subsystemId=\"\)${3}\(\".*\)/\1${4}\20x0000\3${5}\4/" -e t -e d -i ${1}
+        -e ':clone' -e p -e "s/\(.* deviceId=\"\)${2}\(\" subsystemVendorId=\"\)0x10de\(\" subsystemId=\"\)${3}\(\".*\)/\1${4}\20x10de\3${5}\4/" -e t -e d -i ${1}
 }
+
+vcfgpatch() {
+    echo "vcfgpatch ${2#0x}:${3#0x} -> ${4#0x}:${5#0x}"
+    sed -e "s/\(.* deviceId=\"\)${2}\(\" subsystemVendorId=\"\)0x10de\(\" subsystemId=\"\)${3}\(\".*\)/\1${4}\20x10de\3${5}\4/" -i ${1}
+}
+
 
 DO_VGPU=false
 DO_GRID=false
@@ -50,6 +56,7 @@ case "$1" in
             exit 1
         }
         vcfgclone "$@"
+        #vcfgpatch "$@"
         exit $?
         ;;
     clean)
@@ -133,7 +140,7 @@ $CP unlock/kern.ld ${TARGET}/kernel/nvidia
 $CP unlock/vgpu_unlock_hooks.c ${TARGET}/kernel/unlock
 echo 'ldflags-y += -T $(src)/nvidia/kern.ld' >> ${TARGET}/kernel/nvidia/nvidia.Kbuild
 sed -e 's:^\(#include "nv-time\.h"\):\1\n#include "../unlock/vgpu_unlock_hooks.c":' -i ${TARGET}/kernel/nvidia/os-interface.c
-sed -i ${TARGET}/.manifest -e '/^kernel\/nvidia-vgpu-vfio\/nvidia-vgpu-vfio-sources\.Kbuild / a \
+sed -i ${TARGET}/.manifest -e '/^kernel\/nvidia\/i2c_nvswitch.c / a \
 kernel/unlock/vgpu_unlock_hooks.c 0644 KERNEL_MODULE_SRC INHERIT_PATH_DEPTH:1 MODULE:vgpu\
 kernel/nvidia/kern.ld 0644 KERNEL_MODULE_SRC INHERIT_PATH_DEPTH:1 MODULE:vgpu'
 applypatch ${TARGET} vgpu_unlock_hooks-510.patch
@@ -143,7 +150,7 @@ if $SPOOF; then
     $CP patches/spoof_hook.c ${TARGET}/kernel/unlock
     echo 'NVIDIA_SOURCES += unlock/spoof_hook.c' >> ${TARGET}/kernel/nvidia/nvidia-sources.Kbuild
     sed -e '/^NVIDIA_CFLAGS += .*DEBUG/aNVIDIA_CFLAGS += -DSPOOF_ID' -i ${TARGET}/kernel/nvidia/nvidia.Kbuild
-    sed -i ${TARGET}/.manifest -e '/^kernel\/nvidia-vgpu-vfio\/nvidia-vgpu-vfio-sources\.Kbuild / a \
+    sed -i ${TARGET}/.manifest -e '/^kernel\/nvidia\/i2c_nvswitch.c / a \
 kernel/unlock/spoof_hook.c 0644 KERNEL_MODULE_SRC INHERIT_PATH_DEPTH:1 MODULE:vgpu'
     applypatch ${TARGET} setup-kprobe-for-spoofid-hook.patch
 else
