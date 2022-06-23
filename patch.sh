@@ -1,14 +1,26 @@
 #!/bin/bash
 
+GNRL="NVIDIA-Linux-x86_64-510.73.05"
 VGPU="NVIDIA-Linux-x86_64-510.73.06-vgpu-kvm"
 GRID="NVIDIA-Linux-x86_64-510.73.08-grid"
-MRGD="${GRID}-vgpu-kvm"
+
 SPOOF=true
 
 VER_VGPU=`echo ${VGPU} | awk -F- '{print $4}'`
 VER_GRID=`echo ${GRID} | awk -F- '{print $4}'`
 
-CP="cp -a --reflink"
+CP="cp -a"
+
+case `stat -f --format=%T .` in
+    btrfs | xfs)
+        CP="$CP --reflink"
+        ;;
+esac
+
+VERIFY_BLOBPATCH=false
+if [ -n "`which xxd`" ]; then
+    VERIFY_BLOBPATCH=true
+fi
 
 vcfgclone() {
     echo "vcfgclone ${2#0x}:${3#0x} -> ${4#0x}:${5#0x}"
@@ -42,10 +54,26 @@ case "$1" in
         SOURCE="${GRID}"
         TARGET="${GRID}-patched"
         ;;
-    merge)
+    general)
+        DO_GRID=true
+        GRID="${GNRL}"
+        SOURCE="${GRID}"
+        TARGET="${GRID}-patched"
+        ;;
+    grid-merge)
         DO_VGPU=true
         DO_GRID=true
         DO_MRGD=true
+        MRGD="${GRID}-vgpu-kvm"
+        SOURCE="${MRGD}"
+        TARGET="${MRGD}-patched"
+        ;;
+    general-merge)
+        DO_VGPU=true
+        DO_GRID=true
+        DO_MRGD=true
+        GRID="${GNRL}"
+        MRGD="${VGPU}-merged"
         SOURCE="${MRGD}"
         TARGET="${MRGD}-patched"
         ;;
@@ -59,27 +87,46 @@ case "$1" in
         #vcfgpatch "$@"
         exit $?
         ;;
-    clean)
-        rm -rf ${VGPU}{,-patched} ${GRID}{,-patched} ${MRGD}{,-patched}
-        exit 0
-        ;;
     *)
-        echo "Usage: $0 <vgpu-kvm | grid | merge | vcfg | clean>"
+        echo "Usage: $0 <vgpu-kvm | grid | general | grid-merge | general-merge | vcfg>"
         exit 1
         ;;
 esac
 
 VER_TARGET=`echo ${SOURCE} | awk -F- '{print $4}'`
 
+die() {
+    echo "$@"
+    exit 1
+}
 
 extract() {
+    [ -e ${1} ] || die "package ${1} not found"
+    if [ -d ${1%.run} ]; then
+        echo "WARNING: skipping extract of ${1} as it seems already extracted"
+        return 0
+    fi
     sh ${1} --extract-only
     chmod -R u+w ${1%.run}
 }
 
 blobpatch_byte() {
-    echo "blobpatch ${2}: ${3} ${4}"
-    echo -e -n "\x${4}" | dd of=${1} seek=`printf "%d" 0x${2}` bs=1 count=1 conv=notrunc &>/dev/null
+    echo -n "blobpatch ${2}: ${3} ${4}"
+    CHK=""
+    if $VERIFY_BLOBPATCH; then
+        CHK=$(dd if=${1} skip=`printf "%d" 0x${2}` bs=1 count=1 2>/dev/null | xxd -u -i | sed -e 's/ *0[xX]//')
+    fi
+    if [ -z "${CHK}" -o "${CHK}" = "${3}" ]; then
+        echo -e -n "\x${4}" | dd of=${1} seek=`printf "%d" 0x${2}` bs=1 count=1 conv=notrunc &>/dev/null
+        if [ -n "${CHK}" ]; then
+            echo " [x]"
+        else
+            echo
+        fi
+    else
+        echo
+        die "blobpatch failed: expected ${3} got ${CHK} instead"
+    fi
 }
 
 blobpatch() {
@@ -113,7 +160,12 @@ if $DO_MRGD; then
     $CP ${VGPU}/. ${SOURCE}
     rm ${SOURCE}/libnvidia-ml.so.${VER_VGPU}
     $CP ${GRID}/. ${SOURCE}
-    for i in LICENSE kernel/nvidia/nvidia-sources.Kbuild init-scripts/{post-install,pre-uninstall} nvidia-bug-report.sh
+    if [ "${GRID/${TARGET_VER}}" = "${GRID}" ]; then
+        USE_KVM_BLOB="kernel/nvidia/nv-kernel.o_binary"
+    else
+        USE_KVM_BLOB=""
+    fi
+    for i in LICENSE kernel/nvidia/nvidia-sources.Kbuild init-scripts/{post-install,pre-uninstall} nvidia-bug-report.sh ${USE_KVM_BLOB}
     do
         $CP ${VGPU}/$i ${SOURCE}/$i
     done
@@ -127,7 +179,7 @@ if $DO_MRGD; then
     echo "merging .manifest file"
     sed -f manifest-merge.sed -i ${SOURCE}/.manifest
     rm manifest-merge.sed
-    applypatch ${SOURCE} vgpu-kvm-merge-grid-scripts.patch
+    [ -e ${SOURCE}/nvidia-gridd ] && applypatch ${SOURCE} vgpu-kvm-merge-grid-scripts.patch
     applypatch ${SOURCE} disable-nvidia-blob-version-check.patch
 fi
 
