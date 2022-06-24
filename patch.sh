@@ -156,7 +156,8 @@ $DO_GRID && extract ${GRID}.run
 
 if $DO_MRGD; then
     echo "about to create merged driver"
-    mkdir -p ${SOURCE}
+    rm -rf ${SOURCE}
+    mkdir ${SOURCE}
     $CP ${VGPU}/. ${SOURCE}
     rm ${SOURCE}/libnvidia-ml.so.${VER_VGPU}
     $CP ${GRID}/. ${SOURCE}
