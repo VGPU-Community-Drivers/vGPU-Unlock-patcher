@@ -5,6 +5,7 @@ VGPU="NVIDIA-Linux-x86_64-510.73.06-vgpu-kvm"
 GRID="NVIDIA-Linux-x86_64-510.73.08-grid"
 
 SPOOF=true
+REPACK=false
 
 VER_VGPU=`echo ${VGPU} | awk -F- '{print $4}'`
 VER_GRID=`echo ${GRID} | awk -F- '{print $4}'`
@@ -38,10 +39,17 @@ DO_VGPU=false
 DO_GRID=false
 DO_MRGD=false
 
-if [ "$1" = "--no-spoof" ]; then
-    shift
-    SPOOF=false
-fi
+while [ $# -gt 0 -a "${1:0:2}" = "--" ]
+do
+    if [ "$1" = "--no-spoof" ]; then
+        shift
+        SPOOF=false
+    fi
+    if [ "$1" = "--repack" ]; then
+        shift
+        REPACK=true
+    fi
+done
 
 case "$1" in
     vgpu*)
@@ -106,6 +114,7 @@ extract() {
         echo "WARNING: skipping extract of ${1} as it seems already extracted"
         return 0
     fi
+    $REPACK && sh ${1} --lsm > ${TARGET}.lsm
     sh ${1} --extract-only
     chmod -R u+w ${1%.run}
 }
@@ -214,4 +223,17 @@ blobpatch ${TARGET}/kernel/nvidia/nv-kernel.o_binary patches/blob-${VER_TARGET}.
 
 if $DO_VGPU; then
     vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1E84 0x0000
+fi
+
+if $REPACK; then
+    REPACK_OPTS="${REPACK_OPTS:---silent}"
+    [ -e ${TARGET}.lsm ] && REPACK_OPTS="${REPACK_OPTS} --lsm ${TARGET}.lsm"
+    [ -e ${TARGET}/pkg-history.txt ] && REPACK_OPTS="${REPACK_OPTS} --pkg-history ${TARGET}/pkg-history.txt"
+    echo "about to create ${TARGET}.run file"
+    ./${TARGET}/makeself.sh ${REPACK_OPTS} --version-string "${VER_TARGET}" --target-os Linux --target-arch x86_64 \
+        ${TARGET} ${TARGET}.run \
+        "NVIDIA Accelerated Graphics Driver for Linux-x86_64 ${TARGET#NVIDIA-Linux-x86_64-}" \
+        ./nvidia-installer
+    rm -f ${TARGET}.lsm
+    echo "done"
 fi
