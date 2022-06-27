@@ -1,0 +1,186 @@
+diff --git a/vgpuConfig.xml b/vgpuConfig.xml
+index a3e9cbb..58c4745 100644
+--- a/vgpuConfig.xml
++++ b/vgpuConfig.xml
+@@ -5030,6 +5030,142 @@
+     <license>QVDWS;VWS;VWSExt</license>
+     <nvlinkP2PSupported>1</nvlinkP2PSupported>
+   </vgpuType>
++<vgpuType id="331" name="GRID RTX2070-1" class="Geforce">
++  <devId vendorId="0x10de" deviceId="0x1E30" subsystemVendorId="0x10de" subsystemId="0x13B9"/>
++  <framebuffer>0x38000000</framebuffer>
++  <numHeads>4</numHeads>
++  <display width="5120" height="2880"/>
++  <maxPixels>17694720</maxPixels>
++  <mappableVideoSize>0x400000</mappableVideoSize>
++  <fbReservation>0x8000000</fbReservation>
++  <frlConfig>0x3c</frlConfig>
++  <cudaEnabled>1</cudaEnabled>
++  <eccSupported>0</eccSupported>
++  <multiVgpuSupported>0</multiVgpuSupported>
++  <encoderCapacity>0x64</encoderCapacity>
++  <bar1Length>0x100</bar1Length>
++  <frame_rate_limiter>0</frame_rate_limiter>
++  <license>VGaming</license>
++</vgpuType>
++<vgpuType id="332" name="GRID RTX2070-2" class="Geforce">
++  <devId vendorId="0x10de" deviceId="0x1E30" subsystemVendorId="0x10de" subsystemId="0x13BA"/>
++  <framebuffer>0x74000000</framebuffer>
++  <numHeads>4</numHeads>
++  <display width="7680" height="4320"/>
++  <maxPixels>35389440</maxPixels>
++  <mappableVideoSize>0x400000</mappableVideoSize>
++  <fbReservation>0xC000000</fbReservation>
++  <frlConfig>0x3c</frlConfig>
++  <cudaEnabled>1</cudaEnabled>
++  <eccSupported>0</eccSupported>
++  <multiVgpuSupported>0</multiVgpuSupported>
++  <encoderCapacity>0x64</encoderCapacity>
++  <bar1Length>0x100</bar1Length>
++  <frame_rate_limiter>0</frame_rate_limiter>
++  <license>VGaming</license>
++</vgpuType>
++<vgpuType id="333" name="GRID RTX2070-3" class="Geforce">
++  <devId vendorId="0x10de" deviceId="0x1E30" subsystemVendorId="0x10de" subsystemId="0x13BB"/>
++  <framebuffer>0xB0000000</framebuffer>
++  <numHeads>4</numHeads>
++  <display width="7680" height="4320"/>
++  <maxPixels>35389440</maxPixels>
++  <mappableVideoSize>0x400000</mappableVideoSize>
++  <fbReservation>0x10000000</fbReservation>
++  <frlConfig>0x3c</frlConfig>
++  <cudaEnabled>1</cudaEnabled>
++  <eccSupported>0</eccSupported>
++  <multiVgpuSupported>0</multiVgpuSupported>
++  <encoderCapacity>0x64</encoderCapacity>
++  <bar1Length>0x100</bar1Length>
++  <frame_rate_limiter>0</frame_rate_limiter>
++  <license>VGaming</license>
++</vgpuType>
++<vgpuType id="334" name="GRID RTX2070-4" class="Geforce">
++  <devId vendorId="0x10de" deviceId="0x1E30" subsystemVendorId="0x10de" subsystemId="0x13BC"/>
++  <framebuffer>0xEC000000</framebuffer>
++  <numHeads>4</numHeads>
++  <display width="7680" height="4320"/>
++  <maxPixels>58982400</maxPixels>
++  <mappableVideoSize>0x400000</mappableVideoSize>
++  <fbReservation>0x14000000</fbReservation>
++  <frlConfig>0x3c</frlConfig>
++  <cudaEnabled>1</cudaEnabled>
++  <eccSupported>0</eccSupported>
++  <multiVgpuSupported>0</multiVgpuSupported>
++  <encoderCapacity>0x64</encoderCapacity>
++  <bar1Length>0x100</bar1Length>
++  <frame_rate_limiter>0</frame_rate_limiter>
++  <license>VGaming</license>
++</vgpuType>
++<vgpuType id="335" name="GRID RTX2070-5" class="Geforce">
++  <devId vendorId="0x10de" deviceId="0x1E30" subsystemVendorId="0x10de" subsystemId="0x13BD"/>
++  <framebuffer>0x124000000</framebuffer>
++  <numHeads>4</numHeads>
++  <display width="7680" height="4320"/>
++  <maxPixels>58982400</maxPixels>
++  <mappableVideoSize>0x400000</mappableVideoSize>
++  <fbReservation>0x18000000</fbReservation>
++  <frlConfig>0x3c</frlConfig>
++  <cudaEnabled>1</cudaEnabled>
++  <eccSupported>0</eccSupported>
++  <multiVgpuSupported>0</multiVgpuSupported>
++  <encoderCapacity>0x64</encoderCapacity>
++  <bar1Length>0x100</bar1Length>
++  <frame_rate_limiter>0</frame_rate_limiter>
++  <license>VGaming</license>
++</vgpuType>
++<vgpuType id="336" name="GRID RTX2070-6" class="Geforce">
++  <devId vendorId="0x10de" deviceId="0x1E30" subsystemVendorId="0x10de" subsystemId="0x13BE"/>
++  <framebuffer>0x164000000</framebuffer>
++  <numHeads>4</numHeads>
++  <display width="7680" height="4320"/>
++  <maxPixels>58982400</maxPixels>
++  <mappableVideoSize>0x400000</mappableVideoSize>
++  <fbReservation>0x1C000000</fbReservation>
++  <frlConfig>0x3c</frlConfig>
++  <cudaEnabled>1</cudaEnabled>
++  <eccSupported>0</eccSupported>
++  <multiVgpuSupported>0</multiVgpuSupported>
++  <encoderCapacity>0x64</encoderCapacity>
++  <bar1Length>0x100</bar1Length>
++  <frame_rate_limiter>0</frame_rate_limiter>
++  <license>VGaming</license>
++</vgpuType>
++<vgpuType id="337" name="GRID RTX2070-7" class="Geforce">
++  <devId vendorId="0x10de" deviceId="0x1E30" subsystemVendorId="0x10de" subsystemId="0x13CB"/>
++  <framebuffer>0x1A0000000</framebuffer>
++  <numHeads>4</numHeads>
++  <display width="7680" height="4320"/>
++  <maxPixels>58982400</maxPixels>
++  <mappableVideoSize>0x400000</mappableVideoSize>
++  <fbReservation>0x20000000</fbReservation>
++  <frlConfig>0x3c</frlConfig>
++  <cudaEnabled>1</cudaEnabled>
++  <eccSupported>0</eccSupported>
++  <multiVgpuSupported>0</multiVgpuSupported>
++  <encoderCapacity>0x64</encoderCapacity>
++  <bar1Length>0x100</bar1Length>
++  <frame_rate_limiter>0</frame_rate_limiter>
++  <license>VGaming</license>
++</vgpuType>
++<vgpuType id="338" name="GRID RTX2070-8" class="Geforce">
++  <devId vendorId="0x10de" deviceId="0x1E30" subsystemVendorId="0x10de" subsystemId="0x13CC"/>
++  <framebuffer>0x1DC000000</framebuffer>
++  <numHeads>4</numHeads>
++  <display width="7680" height="4320"/>
++  <maxPixels>66355200</maxPixels>
++  <mappableVideoSize>0x400000</mappableVideoSize>
++  <fbReservation>0x24000000</fbReservation>
++  <frlConfig>0x3c</frlConfig>
++  <cudaEnabled>1</cudaEnabled>
++  <eccSupported>0</eccSupported>
++  <multiVgpuSupported>0</multiVgpuSupported>
++  <encoderCapacity>0x64</encoderCapacity>
++  <bar1Length>0x100</bar1Length>
++  <frame_rate_limiter>0</frame_rate_limiter>
++  <license>VGaming</license>
++</vgpuType>
+   <vgpuType id="343" name="GRID RTX6000-4C" class="Compute">
+     <devId vendorId="0x10de" deviceId="0x1E30" subsystemVendorId="0x10de" subsystemId="0x13BF"/>
+     <framebuffer>0xEC000000</framebuffer>
+@@ -11819,6 +11955,38 @@
+       <maxVgpus>1</maxVgpus>
+       <digest type="signature">b331645fd1d0017cd7856e0245bf6a4942666f771ecb5f20044729e96c9e05bff7990896ec175ac24c2075eefcbcb8fde9dd73829a6b67d4474925178b246a6b85327b773f518b8707a5e5fcea543deee183e4c6c255f19efce81402eb477025983b1c8ff65672ffa5b1ed94557d7499d801977c5ffb96976875f091f5aae53e</digest>
+     </supportedVgpu>
++    <supportedVgpu vgpuId="331">
++      <maxVgpus>1</maxVgpus>
++      <digest type="signature">38fc196fcdd9f48ada0737791291d1fa93ae96fd0f517cef43b715bbbb50c37231308f3fecff1faf2fa0c16a0136e1813b15ab1c66b53d9cd370686d525f0c803bca564f21a7efe0c05147f02a3f59e35004a1627afd5f8bc433ab07d71006ace26c75cf3a32e5cc3e1859057b0c01bdb3e87003b2e8b9474c0733cb6d6ff9e4</digest>
++    </supportedVgpu>
++    <supportedVgpu vgpuId="332">
++      <maxVgpus>1</maxVgpus>
++      <digest type="signature">38fc196fcdd9f48ada0737791291d1fa93ae96fd0f517cef43b715bbbb50c37231308f3fecff1faf2fa0c16a0136e1813b15ab1c66b53d9cd370686d525f0c803bca564f21a7efe0c05147f02a3f59e35004a1627afd5f8bc433ab07d71006ace26c75cf3a32e5cc3e1859057b0c01bdb3e87003b2e8b9474c0733cb6d6ff9e4</digest>
++    </supportedVgpu>
++    <supportedVgpu vgpuId="333">
++      <maxVgpus>1</maxVgpus>
++      <digest type="signature">38fc196fcdd9f48ada0737791291d1fa93ae96fd0f517cef43b715bbbb50c37231308f3fecff1faf2fa0c16a0136e1813b15ab1c66b53d9cd370686d525f0c803bca564f21a7efe0c05147f02a3f59e35004a1627afd5f8bc433ab07d71006ace26c75cf3a32e5cc3e1859057b0c01bdb3e87003b2e8b9474c0733cb6d6ff9e4</digest>
++    </supportedVgpu>
++    <supportedVgpu vgpuId="334">
++      <maxVgpus>1</maxVgpus>
++      <digest type="signature">38fc196fcdd9f48ada0737791291d1fa93ae96fd0f517cef43b715bbbb50c37231308f3fecff1faf2fa0c16a0136e1813b15ab1c66b53d9cd370686d525f0c803bca564f21a7efe0c05147f02a3f59e35004a1627afd5f8bc433ab07d71006ace26c75cf3a32e5cc3e1859057b0c01bdb3e87003b2e8b9474c0733cb6d6ff9e4</digest>
++    </supportedVgpu>
++    <supportedVgpu vgpuId="335">
++      <maxVgpus>1</maxVgpus>
++      <digest type="signature">38fc196fcdd9f48ada0737791291d1fa93ae96fd0f517cef43b715bbbb50c37231308f3fecff1faf2fa0c16a0136e1813b15ab1c66b53d9cd370686d525f0c803bca564f21a7efe0c05147f02a3f59e35004a1627afd5f8bc433ab07d71006ace26c75cf3a32e5cc3e1859057b0c01bdb3e87003b2e8b9474c0733cb6d6ff9e4</digest>
++    </supportedVgpu>
++    <supportedVgpu vgpuId="336">
++      <maxVgpus>1</maxVgpus>
++      <digest type="signature">38fc196fcdd9f48ada0737791291d1fa93ae96fd0f517cef43b715bbbb50c37231308f3fecff1faf2fa0c16a0136e1813b15ab1c66b53d9cd370686d525f0c803bca564f21a7efe0c05147f02a3f59e35004a1627afd5f8bc433ab07d71006ace26c75cf3a32e5cc3e1859057b0c01bdb3e87003b2e8b9474c0733cb6d6ff9e4</digest>
++    </supportedVgpu>
++    <supportedVgpu vgpuId="337">
++      <maxVgpus>1</maxVgpus>
++      <digest type="signature">38fc196fcdd9f48ada0737791291d1fa93ae96fd0f517cef43b715bbbb50c37231308f3fecff1faf2fa0c16a0136e1813b15ab1c66b53d9cd370686d525f0c803bca564f21a7efe0c05147f02a3f59e35004a1627afd5f8bc433ab07d71006ace26c75cf3a32e5cc3e1859057b0c01bdb3e87003b2e8b9474c0733cb6d6ff9e4</digest>
++    </supportedVgpu>
++    <supportedVgpu vgpuId="338">
++      <maxVgpus>1</maxVgpus>
++      <digest type="signature">38fc196fcdd9f48ada0737791291d1fa93ae96fd0f517cef43b715bbbb50c37231308f3fecff1faf2fa0c16a0136e1813b15ab1c66b53d9cd370686d525f0c803bca564f21a7efe0c05147f02a3f59e35004a1627afd5f8bc433ab07d71006ace26c75cf3a32e5cc3e1859057b0c01bdb3e87003b2e8b9474c0733cb6d6ff9e4</digest>
++    </supportedVgpu>
+     <supportedVgpu vgpuId="343">
+       <maxVgpus>6</maxVgpus>
+       <digest type="signature">38fc196fcdd9f48ada0737791291d1fa93ae96fd0f517cef43b715bbbb50c37231308f3fecff1faf2fa0c16a0136e1813b15ab1c66b53d9cd370686d525f0c803bca564f21a7efe0c05147f02a3f59e35004a1627afd5f8bc433ab07d71006ace26c75cf3a32e5cc3e1859057b0c01bdb3e87003b2e8b9474c0733cb6d6ff9e4</digest>

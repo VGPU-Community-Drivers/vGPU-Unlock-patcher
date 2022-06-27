@@ -5,6 +5,8 @@ VGPU="NVIDIA-Linux-x86_64-510.73.06-vgpu-kvm"
 GRID="NVIDIA-Linux-x86_64-510.73.08-grid"
 
 SPOOF=true
+CUDAH=true
+MIGRATION=true
 REPACK=false
 
 VER_VGPU=`echo ${VGPU} | awk -F- '{print $4}'`
@@ -45,6 +47,14 @@ do
         shift
         SPOOF=false
     fi
+    if [ "$1" = "--no-host-cuda" ]; then
+        shift
+        CUDAH=false
+    fi
+    if [ "$1" = "--no-migration" ]; then
+        shift
+        MIGRATION=false
+    fi
     if [ "$1" = "--repack" ]; then
         shift
         REPACK=true
@@ -53,6 +63,7 @@ done
 
 case "$1" in
     vgpu*)
+        CUDAH=false
         DO_VGPU=true
         SOURCE="${VGPU}"
         TARGET="${VGPU}-patched"
@@ -102,6 +113,7 @@ case "$1" in
 esac
 
 VER_TARGET=`echo ${SOURCE} | awk -F- '{print $4}'`
+VER_BLOB=${VER_TARGET}
 
 die() {
     echo "$@"
@@ -172,6 +184,7 @@ if $DO_MRGD; then
     $CP ${GRID}/. ${SOURCE}
     if [ "${GRID/${TARGET_VER}}" = "${GRID}" ]; then
         USE_KVM_BLOB="kernel/nvidia/nv-kernel.o_binary"
+        VER_BLOB=`echo ${VGPU} | awk -F- '{print $4}'`
     else
         USE_KVM_BLOB=""
     fi
@@ -207,23 +220,31 @@ kernel/unlock/vgpu_unlock_hooks.c 0644 KERNEL_MODULE_SRC INHERIT_PATH_DEPTH:1 MO
 kernel/nvidia/kern.ld 0644 KERNEL_MODULE_SRC INHERIT_PATH_DEPTH:1 MODULE:vgpu'
 applypatch ${TARGET} vgpu_unlock_hooks-510.patch
 
-if $SPOOF; then
-    echo "applying spoof devid kprobe hook"
-    $CP patches/spoof_hook.c ${TARGET}/kernel/unlock
-    echo 'NVIDIA_SOURCES += unlock/spoof_hook.c' >> ${TARGET}/kernel/nvidia/nvidia-sources.Kbuild
-    sed -e '/^NVIDIA_CFLAGS += .*DEBUG/aNVIDIA_CFLAGS += -DSPOOF_ID' -i ${TARGET}/kernel/nvidia/nvidia.Kbuild
+if $SPOOF || $CUDAH; then
+    $SPOOF && echo "applying spoof devid kprobe hook"
+    $CUDAH && echo "applying host cuda test kprobe hook"
+    $CP patches/kp_hooks.c ${TARGET}/kernel/unlock
+    echo 'NVIDIA_SOURCES += unlock/kp_hooks.c' >> ${TARGET}/kernel/nvidia/nvidia-sources.Kbuild
+    $SPOOF && sed -e '/^NVIDIA_CFLAGS += .*DEBUG/aNVIDIA_CFLAGS += -DSPOOF_ID' -i ${TARGET}/kernel/nvidia/nvidia.Kbuild
+    $CUDAH && sed -e '/^NVIDIA_CFLAGS += .*DEBUG/aNVIDIA_CFLAGS += -DTEST_CUDA_HOST' -i ${TARGET}/kernel/nvidia/nvidia.Kbuild
     sed -i ${TARGET}/.manifest -e '/^kernel\/nvidia\/i2c_nvswitch.c / a \
-kernel/unlock/spoof_hook.c 0644 KERNEL_MODULE_SRC INHERIT_PATH_DEPTH:1 MODULE:vgpu'
-    applypatch ${TARGET} setup-kprobe-for-spoofid-hook.patch
+kernel/unlock/kp_hooks.c 0644 KERNEL_MODULE_SRC INHERIT_PATH_DEPTH:1 MODULE:vgpu'
+    applypatch ${TARGET} setup-kprobe-hooks.patch
 else
-    echo "spoof devid kprobe hook NOT applied"
+    echo "kprobe hooks NOT applied"
 fi
 
-blobpatch ${TARGET}/kernel/nvidia/nv-kernel.o_binary patches/blob-${VER_TARGET}.diff || exit 1
+blobpatch ${TARGET}/kernel/nvidia/nv-kernel.o_binary patches/blob-${VER_BLOB}.diff || exit 1
 
 if $DO_VGPU; then
+    applypatch ${TARGET} vcfg-testing.patch
     vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1E84 0x0000
 fi
+
+$MIGRATION && [ -e ${TARGET}/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.Kbuild ] && {
+    echo "enable migration support (just for testing)"
+    sed -e 's/\(NV_KVM_MIGRATION_UAPI ?=\) 0/\1 1/' -i ${TARGET}/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.Kbuild
+}
 
 if $REPACK; then
     REPACK_OPTS="${REPACK_OPTS:---silent}"
