@@ -238,7 +238,9 @@ blobpatch ${TARGET}/kernel/nvidia/nv-kernel.o_binary patches/blob-${VER_BLOB}.di
 
 if $DO_VGPU; then
     applypatch ${TARGET} vcfg-testing.patch
-    vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1E84 0x0000
+    vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1E84 0x0000	# RTX 2070 super 8GB
+    vcfgclone ${TARGET}/vgpuConfig.xml 0x1B38 0x0 0x1C82 0x0000		# GTX 1050 Ti 4GB
+    vcfgclone ${TARGET}/vgpuConfig.xml 0x13F2 0x0 0x17FD 0x0000		# Tesla M40
 fi
 
 $MIGRATION && [ -e ${TARGET}/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.Kbuild ] && {

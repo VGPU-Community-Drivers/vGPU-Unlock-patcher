@@ -8,8 +8,8 @@ Solution to patch vGPU_Unlock into Nvidia Driver
 | Name | Version | Links |
 | --- | ----------- | ----------- |
 | General | NVIDIA-Linux-x86_64-510.73.05 | [Nvidia Download](https://www.nvidia.com/Download/driverResults.aspx/188994/en-us/), [Google Drive](https://drive.google.com/file/d/1oFz7Jtc6S_QBtDmsKtlFYvxH9ycek01W/view?usp=sharing)  |
-| VGPU | NVIDIA-Linux-x86_64-510.73.06-vgpu-kvm | [Nvidia Download](https://enterprise-support.nvidia.com/s/login/?startURL=%2Fs%2F%3Ft%3D1657093205198), [Google Drive](https://drive.google.com/file/d/1oFz7Jtc6S_QBtDmsKtlFYvxH9ycek01W/view?usp=sharing)  |
-| GRID | NVIDIA-Linux-x86_64-510.73.08-grid | [Nvidia Download](https://enterprise-support.nvidia.com/s/login/?startURL=%2Fs%2F%3Ft%3D1657093205198) [Google Drive](https://drive.google.com/file/d/1oFz7Jtc6S_QBtDmsKtlFYvxH9ycek01W/view?usp=sharing) |
+| VGPU | NVIDIA-Linux-x86_64-510.73.06-vgpu-kvm | [Nvidia Download](https://enterprise-support.nvidia.com/s/login/?startURL=%2Fs%2F%3Ft%3D1657093205198), [Google Drive](https://drive.google.com/file/d/1oFz7Jtc6S_QBtDmsKtlFYvxH9ycek01W/view?usp=sharing), [GitHub](https://github.com/VGPU-Community-Drivers/NV-VGPU-Driver/raw/main/NVIDIA-Linux-x86_64-510.73.06-vgpu-kvm.run) |
+| GRID | NVIDIA-Linux-x86_64-510.73.08-grid | [Nvidia Download](https://enterprise-support.nvidia.com/s/login/?startURL=%2Fs%2F%3Ft%3D1657093205198) [Google Drive](https://drive.google.com/file/d/1oFz7Jtc6S_QBtDmsKtlFYvxH9ycek01W/view?usp=sharing), [GitHub](https://github.com/VGPU-Community-Drivers/NV-VGPU-Driver/blob/main/NVIDIA-Linux-x86_64-510.73.08-grid.run) |
 
 2. Setup Spoofing - edit patch.sh file and search 
 ```
