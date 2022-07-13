@@ -7,6 +7,7 @@ GRID="NVIDIA-Linux-x86_64-510.73.08-grid"
 SPOOF=true
 CUDAH=true
 MIGRATION=true
+OPTVGPU=true
 REPACK=false
 
 VER_VGPU=`echo ${VGPU} | awk -F- '{print $4}'`
@@ -54,6 +55,10 @@ do
     if [ "$1" = "--no-migration" ]; then
         shift
         MIGRATION=false
+    fi
+    if [ "$1" = "--no-opt-vgpu" ]; then
+        shift
+        OPTVGPU=false
     fi
     if [ "$1" = "--repack" ]; then
         shift
@@ -233,6 +238,8 @@ kernel/unlock/kp_hooks.c 0644 KERNEL_MODULE_SRC INHERIT_PATH_DEPTH:1 MODULE:vgpu
 else
     echo "kprobe hooks NOT applied"
 fi
+
+$DO_MRGD && $OPTVGPU && applypatch ${TARGET} vgpu-kvm-merged-optional-vgpu.patch
 
 blobpatch ${TARGET}/kernel/nvidia/nv-kernel.o_binary patches/blob-${VER_BLOB}.diff || exit 1
 
