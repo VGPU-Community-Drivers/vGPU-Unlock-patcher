@@ -8,11 +8,12 @@ extern uint16_t vgpu_unlock_pci_devid_to_vgpu_capable(uint16_t pci_devid);
 
 void spoof_id(struct kprobe *p, struct pt_regs *regs, unsigned long flags)
 {
-    uint16_t devid, newid;
-    devid = regs->r12;
-    newid = vgpu_unlock_pci_devid_to_vgpu_capable(devid);
-    printk(KERN_INFO "nvidia: spoofing device id from 0x%04x to 0x%04x\n", devid, newid);
-    regs->r12 = newid;
+    unsigned long devid, newid;
+    devid = regs->r15;
+    newid = devid & ~0xffff0000UL;
+    newid |= (unsigned long)vgpu_unlock_pci_devid_to_vgpu_capable((devid >> 16) & 0xffff) << 16;
+    printk(KERN_INFO "nvidia: spoofing device id from 0x%04lx to 0x%04lx\n", devid, newid);
+    regs->r15 = newid;
 }
 
 #endif
@@ -26,12 +27,12 @@ static struct kprobe cuda_p1, cuda_p2;
 
 int cuda_h1(struct kprobe *p, struct pt_regs *regs)
 {
-    printk(KERN_INFO "nvidia: cuda_h1 [rsi+0x412](0x%zx)==0x%02x [rdi+0x54d](0x%zx)==0x%02x\n",
-        regs->si + 0x412, *(u8 *)(regs->si + 0x412), regs->di + 0x54d, *(u8 *)(regs->di + 0x54d));
+    printk(KERN_INFO "nvidia: cuda_h1 [rsi+0x542](0x%zx)==0x%02x [rdi+0xae2](0x%zx)==0x%02x\n",
+        regs->si + 0x542, *(u8 *)(regs->si + 0x542), regs->di + 0xae2, *(u8 *)(regs->di + 0xae2));
     if (cuda_host_enable >= 0) {
-        *(u8 *)(regs->si + 0x412) = cuda_host_enable;
-        printk(KERN_INFO "nvidia: cuda_h1 [rsi+0x412](0x%zx) set to 0x%02x\n",
-            regs->si + 0x412, *(u8 *)(regs->si + 0x412));
+        *(u8 *)(regs->si + 0x542) = cuda_host_enable;
+        printk(KERN_INFO "nvidia: cuda_h1 [rsi+0x542](0x%zx) set to 0x%02x\n",
+            regs->si + 0x542, *(u8 *)(regs->si + 0x542));
     }
     //dump_stack();
     return 0;
@@ -39,8 +40,8 @@ int cuda_h1(struct kprobe *p, struct pt_regs *regs)
 
 int cuda_h2(struct kprobe *p, struct pt_regs *regs)
 {
-    printk(KERN_INFO "nvidia: cuda_h2 [r13+0x412](0x%zx)==0x%02x [r13+0x414](0x%zx)==0x%02x\n",
-        regs->r13 + 0x412, *(u8 *)(regs->r13 + 0x412), regs->r13 + 0x414, *(u8 *)(regs->r13 + 0x414));
+    printk(KERN_INFO "nvidia: cuda_h2 [r12+0x542](0x%zx)==0x%02x [r12+0x544](0x%zx)==0x%02x\n",
+        regs->r12 + 0x542, *(u8 *)(regs->r12 + 0x542), regs->r12 + 0x544, *(u8 *)(regs->r12 + 0x544));
     //dump_stack();
     /*
         Call Trace:
@@ -81,8 +82,8 @@ void init_probes(void)
 {
 #ifdef SPOOF_ID
     spoof.post_handler = spoof_id;
-    spoof.symbol_name = "_nv021715rm";
-    spoof.offset = 0x20;
+    spoof.symbol_name = "_nv023175rm";
+    spoof.offset = 0x34;
     if (register_kprobe(&spoof) == 0)
         printk(KERN_INFO "nvidia: spoof devid kprobe hook registered\n");
     else
@@ -94,7 +95,7 @@ void init_probes(void)
 
 #ifdef TEST_CUDA_HOST
     cuda_p1.pre_handler = cuda_h1;
-    cuda_p1.symbol_name = "_nv028434rm";
+    cuda_p1.symbol_name = "_nv029800rm";
     cuda_p1.offset = 0x32;
     if (register_kprobe(&cuda_p1) == 0)
         printk(KERN_INFO "nvidia: cuda_p1 kprobe hook registered\n");
@@ -102,7 +103,7 @@ void init_probes(void)
         printk(KERN_INFO "nvidia: cuda_p1 kprobe hook NOT registered\n");
 
     cuda_p2.pre_handler = cuda_h2;
-    cuda_p2.symbol_name = "_nv029990rm";
+    cuda_p2.symbol_name = "_nv031517rm";
     cuda_p2.offset = 0xd6;
     if (register_kprobe(&cuda_p2) == 0)
         printk(KERN_INFO "nvidia: cuda_p2 kprobe hook registered\n");

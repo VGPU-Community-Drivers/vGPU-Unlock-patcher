@@ -1,8 +1,8 @@
 #!/bin/bash
 
-GNRL="NVIDIA-Linux-x86_64-510.73.05"
-VGPU="NVIDIA-Linux-x86_64-510.73.06-vgpu-kvm"
-GRID="NVIDIA-Linux-x86_64-510.73.08-grid"
+GNRL="NVIDIA-Linux-x86_64-470.141.03"
+VGPU="NVIDIA-Linux-x86_64-470.141.05-vgpu-kvm"
+GRID="NVIDIA-Linux-x86_64-470.141.03-grid"
 
 SPOOF=true
 CUDAH=true
