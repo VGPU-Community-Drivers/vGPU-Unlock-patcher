@@ -73,17 +73,6 @@ case "$1" in
         SOURCE="${VGPU}"
         TARGET="${VGPU}-patched"
         ;;
-    grid)
-        DO_GRID=true
-        SOURCE="${GRID}"
-        TARGET="${GRID}-patched"
-        ;;
-    general)
-        DO_GRID=true
-        GRID="${GNRL}"
-        SOURCE="${GRID}"
-        TARGET="${GRID}-patched"
-        ;;
     grid-merge)
         DO_VGPU=true
         DO_GRID=true
@@ -97,7 +86,7 @@ case "$1" in
         DO_GRID=true
         DO_MRGD=true
         GRID="${GNRL}"
-        MRGD="${VGPU}-merged"
+        MRGD="${GNRL}-merged-vgpu-kvm"
         SOURCE="${MRGD}"
         TARGET="${MRGD}-patched"
         ;;
@@ -112,13 +101,13 @@ case "$1" in
         exit $?
         ;;
     *)
-        echo "Usage: $0 <vgpu-kvm | grid | general | grid-merge | general-merge | vcfg>"
+        echo "Usage: $0 [options] <vgpu-kvm | grid-merge | general-merge | vcfg>"
         exit 1
         ;;
 esac
 
 VER_TARGET=`echo ${SOURCE} | awk -F- '{print $4}'`
-VER_BLOB=${VER_TARGET}
+VER_BLOB=`echo ${VGPU} | awk -F- '{print $4}'`
 
 die() {
     echo "$@"
@@ -242,6 +231,7 @@ fi
 $DO_MRGD && $OPTVGPU && applypatch ${TARGET} vgpu-kvm-merged-optional-vgpu.patch
 
 blobpatch ${TARGET}/kernel/nvidia/nv-kernel.o_binary patches/blob-${VER_BLOB}.diff || exit 1
+$DO_MRGD && { blobpatch ${TARGET}/kernel/nvidia/nv-kernel.o_binary patches/blob-${VER_BLOB}-merged.diff || exit 1; }
 
 if $DO_VGPU; then
     applypatch ${TARGET} vcfg-testing.patch
