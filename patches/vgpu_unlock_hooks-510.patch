@@ -1,12 +1,17 @@
 diff --git a/kernel/unlock/vgpu_unlock_hooks.c b/kernel/unlock/vgpu_unlock_hooks.c
-index 9be623f..90a91a9 100644
+index 9be623f..fc76cca 100644
 --- a/kernel/unlock/vgpu_unlock_hooks.c
 +++ b/kernel/unlock/vgpu_unlock_hooks.c
-@@ -738,6 +738,16 @@ static vgpu_unlock_vgpu_t vgpu_unlock_vgpu[] =
- 	VGPU(0x1e30, 0x143f, "GRID RTX6000-12A"),
- 	VGPU(0x1e30, 0x1440, "GRID RTX6000-24A"),
- 
+@@ -735,8 +735,18 @@ static vgpu_unlock_vgpu_t vgpu_unlock_vgpu[] =
+ 	VGPU(0x1e30, 0x143c, "GRID RTX6000-4A"),
+ 	VGPU(0x1e30, 0x143d, "GRID RTX6000-6A"),
+ 	VGPU(0x1e30, 0x143e, "GRID RTX6000-8A"),
+-	VGPU(0x1e30, 0x143f, "GRID RTX6000-12A"),
+-	VGPU(0x1e30, 0x1440, "GRID RTX6000-24A"),
++
 +	/* for testing with Turing */
++	VGPU(0x1e30, 0x1441, "GRID RTX8000-1B"),
++	VGPU(0x1e30, 0x1442, "GRID RTX8000-2B"),
 +	VGPU(0x1e30, 0x13b9, "GRID RTX2070-1"),
 +	VGPU(0x1e30, 0x13ba, "GRID RTX2070-2"),
 +	VGPU(0x1e30, 0x13bb, "GRID RTX2070-3"),
@@ -15,10 +20,9 @@ index 9be623f..90a91a9 100644
 +	VGPU(0x1e30, 0x13be, "GRID RTX2070-6"),
 +	VGPU(0x1e30, 0x13cb, "GRID RTX2070-7"),
 +	VGPU(0x1e30, 0x13cc, "GRID RTX2070-8"),
-+
+ 
  	/* RTX A6000 (Ampere) */
  	VGPU(0x2230, 0x14fa, "NVIDIA RTXA6000-1B"),
- 	VGPU(0x2230, 0x14fb, "NVIDIA RTXA6000-2B"),
 @@ -769,6 +779,7 @@ static vgpu_unlock_vgpu_t vgpu_unlock_vgpu[] =
  	VGPU(0x2230, 0x1519, "NVIDIA RTXA6000-24C"),
  	VGPU(0x2230, 0x151a, "NVIDIA RTXA6000-48C"),
