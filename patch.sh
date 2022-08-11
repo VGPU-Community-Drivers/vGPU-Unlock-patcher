@@ -6,7 +6,6 @@ GRID="NVIDIA-Linux-x86_64-510.85.02-grid"
 
 SPOOF=true
 CUDAH=true
-MIGRATION=true
 OPTVGPU=true
 REPACK=false
 
@@ -51,10 +50,6 @@ do
     if [ "$1" = "--no-host-cuda" ]; then
         shift
         CUDAH=false
-    fi
-    if [ "$1" = "--no-migration" ]; then
-        shift
-        MIGRATION=false
     fi
     if [ "$1" = "--no-opt-vgpu" ]; then
         shift
@@ -239,11 +234,6 @@ if $DO_VGPU; then
     vcfgclone ${TARGET}/vgpuConfig.xml 0x1B38 0x0 0x1C82 0x0000		# GTX 1050 Ti 4GB
     vcfgclone ${TARGET}/vgpuConfig.xml 0x13F2 0x0 0x17FD 0x0000		# Tesla M40
 fi
-
-$MIGRATION && [ -e ${TARGET}/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.Kbuild ] && {
-    echo "enable migration support (just for testing)"
-    sed -e 's/\(NV_KVM_MIGRATION_UAPI ?=\) 0/\1 1/' -i ${TARGET}/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.Kbuild
-}
 
 if $REPACK; then
     REPACK_OPTS="${REPACK_OPTS:---silent}"
