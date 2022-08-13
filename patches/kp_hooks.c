@@ -94,7 +94,7 @@ void init_probes(void)
 
 #ifdef TEST_CUDA_HOST
     cuda_p1.pre_handler = cuda_h1;
-    cuda_p1.symbol_name = "_nv028466rm";
+    cuda_p1.symbol_name = "_nv028447rm";
     cuda_p1.offset = 0x32;
     if (register_kprobe(&cuda_p1) == 0)
         printk(KERN_INFO "nvidia: cuda_p1 kprobe hook registered\n");
