@@ -1,8 +1,8 @@
 #!/bin/bash
 
-GNRL="NVIDIA-Linux-x86_64-510.73.05"
-VGPU="NVIDIA-Linux-x86_64-510.73.06-vgpu-kvm"
-GRID="NVIDIA-Linux-x86_64-510.73.08-grid"
+GNRL="NVIDIA-Linux-x86_64-460.106.00"
+VGPU="NVIDIA-Linux-x86_64-460.107-vgpu-kvm"
+GRID="NVIDIA-Linux-x86_64-460.106.00-grid"
 
 SPOOF=true
 CUDAH=true
@@ -209,7 +209,7 @@ $CP unlock/kern.ld ${TARGET}/kernel/nvidia
 $CP unlock/vgpu_unlock_hooks.c ${TARGET}/kernel/unlock
 echo 'ldflags-y += -T $(src)/nvidia/kern.ld' >> ${TARGET}/kernel/nvidia/nvidia.Kbuild
 sed -e 's:^\(#include "nv-time\.h"\):\1\n#include "../unlock/vgpu_unlock_hooks.c":' -i ${TARGET}/kernel/nvidia/os-interface.c
-sed -i ${TARGET}/.manifest -e '/^kernel\/nvidia\/i2c_nvswitch.c / a \
+sed -i ${TARGET}/.manifest -e '/^kernel\/nvidia\/linux_nvswitch.h / a \
 kernel/unlock/vgpu_unlock_hooks.c 0644 KERNEL_MODULE_SRC INHERIT_PATH_DEPTH:1 MODULE:vgpu\
 kernel/nvidia/kern.ld 0644 KERNEL_MODULE_SRC INHERIT_PATH_DEPTH:1 MODULE:vgpu'
 applypatch ${TARGET} vgpu_unlock_hooks-510.patch
@@ -221,7 +221,7 @@ if $SPOOF || $CUDAH; then
     echo 'NVIDIA_SOURCES += unlock/kp_hooks.c' >> ${TARGET}/kernel/nvidia/nvidia-sources.Kbuild
     $SPOOF && sed -e '/^NVIDIA_CFLAGS += .*DEBUG/aNVIDIA_CFLAGS += -DSPOOF_ID' -i ${TARGET}/kernel/nvidia/nvidia.Kbuild
     $CUDAH && sed -e '/^NVIDIA_CFLAGS += .*DEBUG/aNVIDIA_CFLAGS += -DTEST_CUDA_HOST' -i ${TARGET}/kernel/nvidia/nvidia.Kbuild
-    sed -i ${TARGET}/.manifest -e '/^kernel\/nvidia\/i2c_nvswitch.c / a \
+    sed -i ${TARGET}/.manifest -e '/^kernel\/nvidia\/linux_nvswitch.h / a \
 kernel/unlock/kp_hooks.c 0644 KERNEL_MODULE_SRC INHERIT_PATH_DEPTH:1 MODULE:vgpu'
     applypatch ${TARGET} setup-kprobe-hooks.patch
 else

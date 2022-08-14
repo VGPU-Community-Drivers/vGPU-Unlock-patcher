@@ -1,20 +1,20 @@
 diff --git a/kernel/nvidia/nv-frontend.c b/kernel/nvidia/nv-frontend.c
-index 656382c..24d703b 100644
+index 45d91b3..1b2ec07 100644
 --- a/kernel/nvidia/nv-frontend.c
 +++ b/kernel/nvidia/nv-frontend.c
-@@ -30,7 +30,11 @@
+@@ -15,7 +15,11 @@
+ #include "nv-frontend.h"
  
- 
- 
+ #if defined(MODULE_LICENSE)
 +#if !defined(SPOOF_ID) && !defined(TEST_CUDA_HOST)
  MODULE_LICENSE("NVIDIA");
 +#else
 +MODULE_LICENSE("GPL");
 +#endif
- 
  #endif
  #if defined(MODULE_INFO)
-@@ -351,10 +355,15 @@ int nvidia_frontend_mmap(
+ MODULE_INFO(supported, "external");
+@@ -335,10 +339,15 @@ int nvidia_frontend_mmap(
      return rc;
  }
  
@@ -30,7 +30,7 @@ index 656382c..24d703b 100644
      // initialise nvidia module table;
      nv_num_instances = 0;
      memset(nv_minor_num_table, 0, sizeof(nv_minor_num_table));
-@@ -379,6 +388,8 @@ static int __init nvidia_frontend_init_module(void)
+@@ -363,6 +372,8 @@ static int __init nvidia_frontend_init_module(void)
  
  static void __exit nvidia_frontend_exit_module(void)
  {
