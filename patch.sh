@@ -9,6 +9,11 @@ CUDAH=true
 MIGRATION=true
 OPTVGPU=true
 REPACK=false
+SWITCH_GRID_TO_GNRL=false
+
+if [ ! -e "${GNRL}.run" -a -e "${GRID}.run" ]; then
+    SWITCH_GRID_TO_GNRL=true
+fi
 
 VER_VGPU=`echo ${VGPU} | awk -F- '{print $4}'`
 VER_GRID=`echo ${GRID} | awk -F- '{print $4}'`
@@ -80,12 +85,18 @@ case "$1" in
         MRGD="${GRID}-vgpu-kvm"
         SOURCE="${MRGD}"
         TARGET="${MRGD}-patched"
+        SWITCH_GRID_TO_GNRL=false
         ;;
     general-merge)
         DO_VGPU=true
         DO_GRID=true
         DO_MRGD=true
-        GRID="${GNRL}"
+        if $SWITCH_GRID_TO_GNRL; then
+            echo "WARNING: did not find general driver, trying to create it from grid one"
+            GNRL="${GRID/-grid}"
+        else
+            GRID="${GNRL}"
+        fi
         MRGD="${GNRL}-merged-vgpu-kvm"
         SOURCE="${MRGD}"
         TARGET="${MRGD}-patched"
@@ -116,13 +127,17 @@ die() {
 
 extract() {
     [ -e ${1} ] || die "package ${1} not found"
-    if [ -d ${1%.run} ]; then
-        echo "WARNING: skipping extract of ${1} as it seems already extracted"
+    TDIR="${2}"
+    if [ -z "${TDIR}" ]; then
+        TDIR="${1%.run}"
+    fi
+    if [ -d ${TDIR} ]; then
+        echo "WARNING: skipping extract of ${1} as it seems already extracted in ${TDIR}"
         return 0
     fi
     $REPACK && sh ${1} --lsm > ${TARGET}.lsm
-    sh ${1} --extract-only
-    chmod -R u+w ${1%.run}
+    sh ${1} --extract-only --target ${TDIR}
+    chmod -R u+w ${TDIR}
 }
 
 blobpatch_byte() {
@@ -162,12 +177,27 @@ blobpatch() {
 }
 
 applypatch() {
-    echo "applypatch ${2}"
-    patch -d ${1} -p1 --no-backup-if-mismatch < patches/${2}
+    echo "applypatch ${2} ${3}"
+    patch -d ${1} -p1 --no-backup-if-mismatch ${3} < patches/${2}
 }
 
 $DO_VGPU && extract ${VGPU}.run
-$DO_GRID && extract ${GRID}.run
+$DO_GRID && {
+    if $SWITCH_GRID_TO_GNRL; then
+        extract ${GRID}.run ${GNRL}
+        applypatch ${GNRL} vgpu-kvm-merge-grid-scripts.patch -R
+        GRID=${GNRL}
+        grep ' MODULE:vgpu$\|kernel/nvidia/nv-vgpu-vmbus' ${GRID}/.manifest | awk -F' ' '{print $1}' | while read i
+        do
+            rm -f ${GRID}/$i
+        done
+        sed -e '/ MODULE:vgpu$/ d' -e '/kernel\/nvidia\/nv-vgpu-vmbus/ d'  -i ${GRID}/.manifest
+        sed -e '/nvidia\/nv-vgpu-vmbus.c/ d' -i ${GRID}/kernel/nvidia/nvidia-sources.Kbuild
+        sed -e '/^[ \t]*GRID_BUILD=1/ d' -i ${GRID}/kernel/conftest.sh
+    else
+        extract ${GRID}.run
+    fi
+}
 
 if $DO_MRGD; then
     echo "about to create merged driver"
