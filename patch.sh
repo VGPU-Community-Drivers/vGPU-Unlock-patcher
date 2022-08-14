@@ -264,6 +264,7 @@ blobpatch ${TARGET}/kernel/nvidia/nv-kernel.o_binary patches/blob-${VER_BLOB}.di
 $DO_MRGD && { blobpatch ${TARGET}/kernel/nvidia/nv-kernel.o_binary patches/blob-${VER_BLOB}-merged.diff || exit 1; }
 
 if $DO_VGPU; then
+    applypatch ${TARGET} twelve.patch
     applypatch ${TARGET} vcfg-testing.patch
     vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1E84 0x0000	# RTX 2070 super 8GB
     vcfgclone ${TARGET}/vgpuConfig.xml 0x1B38 0x0 0x1C82 0x0000		# GTX 1050 Ti 4GB
