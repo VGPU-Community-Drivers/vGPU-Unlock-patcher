@@ -37,6 +37,15 @@ the new vcfgclone line in this example:
 ``` ./patch.sh general ``` 
 ``` ./patch.sh vcfg ``` 
 
+## Changelog
+
+- cudahost=1 nvidia module option of merged driver now works with all versions, enables also raytracing on host
+- multiple fixes and tuning in the default profiles for rtx 2070+
+- simplified patching focusing only on vgpu kvm blob, split the patch for merged driver extension
+- supports setup of general-merge converting grid variant to general in case general run file is not available
+- multiple versions in branches: 460.107, 470.141, 510.73, 510.85
+- with 460.107 version ray tracing works on host with general-merge driver even with windows VMs
+
 ### Other Options 
 
 ```--repack ``` option that can be used to create unlocked/patched .run file (usually not necessary as you can simply start nvidia-installer from the directory).
