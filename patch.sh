@@ -43,8 +43,10 @@ vcfgpatch() {
 
 
 DO_VGPU=false
+DO_GNRL=false
 DO_GRID=false
 DO_MRGD=false
+DO_UNLK=true
 
 while [ $# -gt 0 -a "${1:0:2}" = "--" ]
 do
@@ -72,6 +74,25 @@ case "$1" in
         DO_VGPU=true
         SOURCE="${VGPU}"
         TARGET="${VGPU}-patched"
+        ;;
+    grid)
+        DO_GNRL=true
+        DO_GRID=true
+        SOURCE="${GRID}"
+        TARGET="${GRID}-patched"
+        DO_UNLK=false
+        SPOOF=false
+        CUDAH=false
+        ;;
+    general)
+        DO_GNRL=true
+        DO_GRID=true
+        GRID="${GNRL}"
+        SOURCE="${GRID}"
+        TARGET="${GRID}-patched"
+        DO_UNLK=false
+        SPOOF=false
+        CUDAH=false
         ;;
     grid-merge)
         DO_VGPU=true
@@ -107,7 +128,7 @@ case "$1" in
         exit $?
         ;;
     *)
-        echo "Usage: $0 [options] <vgpu-kvm | grid-merge | general-merge | vcfg>"
+        echo "Usage: $0 [options] <vgpu-kvm | grid | general | grid-merge | general-merge | vcfg>"
         exit 1
         ;;
 esac
@@ -229,15 +250,22 @@ rm -rf ${TARGET}
 mkdir -p ${TARGET}/kernel/unlock
 $CP ${SOURCE}/. ${TARGET}
 
-echo "applying vgpu_unlock hooks"
-$CP unlock/kern.ld ${TARGET}/kernel/nvidia
-$CP unlock/vgpu_unlock_hooks.c ${TARGET}/kernel/unlock
-echo 'ldflags-y += -T $(src)/nvidia/kern.ld' >> ${TARGET}/kernel/nvidia/nvidia.Kbuild
-sed -e 's:^\(#include "nv-time\.h"\):\1\n#include "../unlock/vgpu_unlock_hooks.c":' -i ${TARGET}/kernel/nvidia/os-interface.c
-sed -i ${TARGET}/.manifest -e '/^kernel\/nvidia\/i2c_nvswitch.c / a \
+if $DO_GNRL; then
+    VER_BLOB=${VER_TARGET}
+    grep -q '^GRID_BUILD=1' ${TARGET}/kernel/conftest.sh || sed -e '/^# GRID_BUILD /aGRID_BUILD=1' -i ${TARGET}/kernel/conftest.sh
+fi
+
+if $DO_UNLK; then
+    echo "applying vgpu_unlock hooks"
+    $CP unlock/kern.ld ${TARGET}/kernel/nvidia
+    $CP unlock/vgpu_unlock_hooks.c ${TARGET}/kernel/unlock
+    echo 'ldflags-y += -T $(src)/nvidia/kern.ld' >> ${TARGET}/kernel/nvidia/nvidia.Kbuild
+    sed -e 's:^\(#include "nv-time\.h"\):\1\n#include "../unlock/vgpu_unlock_hooks.c":' -i ${TARGET}/kernel/nvidia/os-interface.c
+    sed -i ${TARGET}/.manifest -e '/^kernel\/nvidia\/i2c_nvswitch.c / a \
 kernel/unlock/vgpu_unlock_hooks.c 0644 KERNEL_MODULE_SRC INHERIT_PATH_DEPTH:1 MODULE:vgpu\
 kernel/nvidia/kern.ld 0644 KERNEL_MODULE_SRC INHERIT_PATH_DEPTH:1 MODULE:vgpu'
-applypatch ${TARGET} vgpu_unlock_hooks-510.patch
+    applypatch ${TARGET} vgpu_unlock_hooks-510.patch
+fi
 
 if $SPOOF || $CUDAH; then
     $SPOOF && echo "applying spoof devid kprobe hook"
@@ -249,8 +277,6 @@ if $SPOOF || $CUDAH; then
     sed -i ${TARGET}/.manifest -e '/^kernel\/nvidia\/i2c_nvswitch.c / a \
 kernel/unlock/kp_hooks.c 0644 KERNEL_MODULE_SRC INHERIT_PATH_DEPTH:1 MODULE:vgpu'
     applypatch ${TARGET} setup-kprobe-hooks.patch
-else
-    echo "kprobe hooks NOT applied"
 fi
 
 $DO_MRGD && $OPTVGPU && applypatch ${TARGET} vgpu-kvm-merged-optional-vgpu.patch
@@ -263,6 +289,8 @@ if $DO_VGPU; then
     vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1E84 0x0000	# RTX 2070 super 8GB
     vcfgclone ${TARGET}/vgpuConfig.xml 0x1B38 0x0 0x1C82 0x0000		# GTX 1050 Ti 4GB
     vcfgclone ${TARGET}/vgpuConfig.xml 0x13F2 0x0 0x17FD 0x0000		# Tesla M40
+    vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x2184 0x0000	# GTX 1660 6GB
+    vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1f03 0x0000	# RTX 2060 12GB
 fi
 
 if $REPACK; then
