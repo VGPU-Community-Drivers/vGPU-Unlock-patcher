@@ -4,6 +4,7 @@ GNRL="NVIDIA-Linux-x86_64-510.85.02"
 VGPU="NVIDIA-Linux-x86_64-510.85.03-vgpu-kvm"
 GRID="NVIDIA-Linux-x86_64-510.85.02-grid"
 WSYS="NVIDIA-Windows-x86_64-512.15"
+#WSYS="NVIDIA-Windows-x86_64-513.46"
 
 SPOOF=true
 CUDAH=true
@@ -278,13 +279,15 @@ if $DO_WSYS; then
     which osslsigncode &>/dev/null || die "install osslsigncode (https://github.com/mtrojnar/osslsigncode)"
 
     echo -n "removing sys file signature ... "
-    osslsigncode remove-signature -in ${TARGET}/nvlddmkm.sys -out ${TARGET}/nvlddmkm-unsigned.sys
-    rm -f ${TARGET}/nvlddmkm.sys
+    rm -f ${SOURCE}/nvlddmkm-unsigned.sys
+    osslsigncode remove-signature -in ${SOURCE}/nvlddmkm.sys -out ${SOURCE}/nvlddmkm-unsigned.sys
+    $CP ${SOURCE}/nvlddmkm-unsigned.sys ${TARGET}/nvlddmkm-unsigned.sys
 
     echo "about to patch ${TARGET}/nvlddmkm-unsigned.sys"
     blobpatch ${TARGET}/nvlddmkm-unsigned.sys patches/wsys-${VER_TARGET}.diff || exit 1
 
-    echo -n "signing the sys file with test certificate ... "
+    echo -n "creating ${TARGET}/nvlddmkm.sys signed with a test certificate ... "
+    rm -f ${TARGET}/nvlddmkm.sys
     osslsigncode sign -pkcs12 patches/wsys-test-cert.pfx -pass P@ss0wrd -n "nvidia-driver-vgpu-unlock" \
         -t http://timestamp.digicert.com -in ${TARGET}/nvlddmkm-unsigned.sys -out ${TARGET}/nvlddmkm.sys
 
