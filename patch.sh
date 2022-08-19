@@ -3,6 +3,7 @@
 GNRL="NVIDIA-Linux-x86_64-510.85.02"
 VGPU="NVIDIA-Linux-x86_64-510.85.03-vgpu-kvm"
 GRID="NVIDIA-Linux-x86_64-510.85.02-grid"
+WSYS="NVIDIA-Windows-x86_64-512.15"
 
 SPOOF=true
 CUDAH=true
@@ -46,6 +47,7 @@ DO_VGPU=false
 DO_GNRL=false
 DO_GRID=false
 DO_MRGD=false
+DO_WSYS=false
 DO_UNLK=true
 
 while [ $# -gt 0 -a "${1:0:2}" = "--" ]
@@ -94,6 +96,11 @@ case "$1" in
         SPOOF=false
         CUDAH=false
         ;;
+    wsys)
+        DO_WSYS=true
+        SOURCE="${WSYS}"
+        TARGET="${WSYS}-patched"
+        ;;
     grid-merge)
         DO_VGPU=true
         DO_GRID=true
@@ -128,7 +135,7 @@ case "$1" in
         exit $?
         ;;
     *)
-        echo "Usage: $0 [options] <vgpu-kvm | grid | general | grid-merge | general-merge | vcfg>"
+        echo "Usage: $0 [options] <vgpu-kvm | grid | general | wsys | grid-merge | general-merge | vcfg>"
         exit 1
         ;;
 esac
@@ -215,6 +222,24 @@ $DO_GRID && {
     fi
 }
 
+if $DO_WSYS && [ ! -e "${WSYS}/nvlddmkm.sys" ]; then
+    echo "source ${WSYS}/nvlddmkm.sys not found, will try to extract it"
+    NV_WIN_DRV_INSTALLER=`ls -1 ${VER_TARGET}*[-_]win*[-_]64bit*.exe | head -n 1`
+    [ -e "$NV_WIN_DRV_INSTALLER" ] || die "nvidia windows driver installer version $VER_TAGET not found"
+    which 7z &>/dev/null || die "install p7zip-full for 7z tool (http://p7zip.sourceforge.net/)"
+    which msexpand &>/dev/null || die "install mscompress (https://github.com/stapelberg/mscompress)"
+    rm -rf ${WSYS}
+    SYS_SRC="Display.Driver/nvlddmkm.sy_"
+    echo "extracting nvlddmkm.sys, please wait..."
+    7z x -o${WSYS} "$NV_WIN_DRV_INSTALLER" "${SYS_SRC}" &>/dev/null
+    SYS_SRC="${WSYS}/${SYS_SRC}"
+    SYS_DST=`echo "${SYS_SRC%_}s" | sed -e 's:Display.Driver/::'`
+    [ -e "${SYS_SRC}" ] || die "packed driver (${SYS_SRC}) not found"
+    msexpand < ${SYS_SRC} > ${SYS_DST}
+    rm -rf "${WSYS}/Display.Driver"
+    echo "extracted ${SYS_DST} from windows driver installer"
+fi
+
 if $DO_MRGD; then
     echo "about to create merged driver"
     rm -rf ${SOURCE}
@@ -247,8 +272,24 @@ if $DO_MRGD; then
 fi
 
 rm -rf ${TARGET}
-mkdir -p ${TARGET}/kernel/unlock
-$CP ${SOURCE}/. ${TARGET}
+$CP ${SOURCE} ${TARGET}
+
+if $DO_WSYS; then
+    which osslsigncode &>/dev/null || die "install osslsigncode (https://github.com/mtrojnar/osslsigncode)"
+
+    echo -n "removing sys file signature ... "
+    osslsigncode remove-signature -in ${TARGET}/nvlddmkm.sys -out ${TARGET}/nvlddmkm-unsigned.sys
+    rm -f ${TARGET}/nvlddmkm.sys
+
+    echo "about to patch ${TARGET}/nvlddmkm-unsigned.sys"
+    blobpatch ${TARGET}/nvlddmkm-unsigned.sys patches/wsys-${VER_TARGET}.diff || exit 1
+
+    echo -n "signing the sys file with test certificate ... "
+    osslsigncode sign -pkcs12 patches/wsys-test-cert.pfx -pass P@ss0wrd -n "nvidia-driver-vgpu-unlock" \
+        -t http://timestamp.digicert.com -in ${TARGET}/nvlddmkm-unsigned.sys -out ${TARGET}/nvlddmkm.sys
+
+    exit 0
+fi
 
 if $DO_GNRL; then
     VER_BLOB=${VER_TARGET}
@@ -257,6 +298,7 @@ fi
 
 if $DO_UNLK; then
     echo "applying vgpu_unlock hooks"
+    mkdir -p ${TARGET}/kernel/unlock
     $CP unlock/kern.ld ${TARGET}/kernel/nvidia
     $CP unlock/vgpu_unlock_hooks.c ${TARGET}/kernel/unlock
     echo 'ldflags-y += -T $(src)/nvidia/kern.ld' >> ${TARGET}/kernel/nvidia/nvidia.Kbuild
