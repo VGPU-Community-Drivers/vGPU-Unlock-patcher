@@ -1,0 +1,60 @@
+From 74a7bb4766af047b00488733ffaa06e427217d2c Mon Sep 17 00:00:00 2001
+From: snowman <snowman@localhost.localdomain>
+Date: Sun, 28 Aug 2022 23:09:32 +0200
+Subject: [PATCH] basic filter for nvrm logs
+
+to be used with verbose nvrm logging, like:
+options nvidia NVreg_ResmanDebugLevel=0 nvprnfilter=1
+---
+ kernel/nvidia/os-interface.c | 28 ++++++++++++++++++++++++++++
+ 1 file changed, 28 insertions(+)
+
+diff --git a/kernel/nvidia/os-interface.c b/kernel/nvidia/os-interface.c
+index c204f69..2f9072a 100644
+--- a/kernel/nvidia/os-interface.c
++++ b/kernel/nvidia/os-interface.c
+@@ -693,6 +693,25 @@ inline void NV_API_CALL out_string(const char *str)
+     printk("%s", str);
+ }
+ 
++int nv_printf_filter_enable;
++module_param_named(nvprnfilter, nv_printf_filter_enable, int, 0600);
++
++#define NVPRFTENTRY(s) { s, sizeof(s) - 1 }
++static struct {
++    const char *str;
++    int len;
++} nv_printf_filter[] = {
++    NVPRFTENTRY("NVRM: VM: "),
++    NVPRFTENTRY("NVRM: ioctl("),
++    NVPRFTENTRY("NVRM: nvidia_open..."),
++    NVPRFTENTRY("NVRM: nvidia_ctl_open"),
++    NVPRFTENTRY("NVRM: nvidia_ctl_close"),
++    NVPRFTENTRY("NVRM: GPU %04x:%02x:%02x.%x: Opening GPU"),
++    NVPRFTENTRY("NVRM: GPU %04x:%02x:%02x.%x: nvidia_close on GPU"),
++    NVPRFTENTRY("NVRM: GPU %04x:%02x:%02x.%x: nvidia_close on GPU"),
++    { NULL, 0 }
++};
++
+ /*
+  * nv_printf() prints to the kernel log for the driver.
+  * Returns the number of characters written.
+@@ -729,6 +748,15 @@ int NV_API_CALL nv_printf(NvU32 debuglevel, const char *printf_format, ...)
+         if (length < 1)
+             return 0;
+ 
++        if (nv_printf_filter_enable) {
++            int i;
++            for (i = 0; nv_printf_filter[i].str != NULL; i++) {
++                if (strncmp(printf_format, nv_printf_filter[i].str,
++                            nv_printf_filter[i].len) == 0)
++                    return 0;
++            }
++        }
++
+         temp = kmalloc(length + sizeof(KERN_CONT), GFP_ATOMIC);
+         if (!temp)
+             return 0;
+-- 
+2.30.2
+

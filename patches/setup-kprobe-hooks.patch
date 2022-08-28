@@ -6,7 +6,7 @@ index 656382c..24d703b 100644
  
  
  
-+#if !defined(SPOOF_ID) && !defined(TEST_CUDA_HOST)
++#if !defined(SPOOF_ID) && !defined(TEST_CUDA_HOST) && !defined(KLOGTRACE)
  MODULE_LICENSE("NVIDIA");
 +#else
 +MODULE_LICENSE("GPL");

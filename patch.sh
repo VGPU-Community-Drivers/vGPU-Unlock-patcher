@@ -8,6 +8,7 @@ WSYS="NVIDIA-Windows-x86_64-512.15"
 
 SPOOF=true
 CUDAH=true
+KLOGT=true
 OPTVGPU=true
 REPACK=false
 SWITCH_GRID_TO_GNRL=false
@@ -60,6 +61,10 @@ do
     if [ "$1" = "--no-host-cuda" ]; then
         shift
         CUDAH=false
+    fi
+    if [ "$1" = "--no-klogtrace" ]; then
+        shift
+        KLOGT=false
     fi
     if [ "$1" = "--no-opt-vgpu" ]; then
         shift
@@ -284,6 +289,7 @@ if $DO_WSYS; then
     $CP ${SOURCE}/nvlddmkm-unsigned.sys ${TARGET}/nvlddmkm-unsigned.sys
 
     echo "about to patch ${TARGET}/nvlddmkm-unsigned.sys"
+    blobpatch ${TARGET}/nvlddmkm-unsigned.sys patches/wsys-${VER_TARGET}-klogtrace.diff || exit 1
     blobpatch ${TARGET}/nvlddmkm-unsigned.sys patches/wsys-${VER_TARGET}.diff || exit 1
 
     echo -n "creating ${TARGET}/nvlddmkm.sys signed with a test certificate ... "
@@ -312,16 +318,20 @@ kernel/nvidia/kern.ld 0644 KERNEL_MODULE_SRC INHERIT_PATH_DEPTH:1 MODULE:vgpu'
     applypatch ${TARGET} vgpu_unlock_hooks-510.patch
 fi
 
-if $SPOOF || $CUDAH; then
+if $SPOOF || $CUDAH || $KLOGT; then
     $SPOOF && echo "applying spoof devid kprobe hook"
     $CUDAH && echo "applying host cuda test kprobe hook"
+    $KLOGT && echo "applying klogtrace kprobe hook"
+    mkdir -p ${TARGET}/kernel/unlock
     $CP patches/kp_hooks.c ${TARGET}/kernel/unlock
     echo 'NVIDIA_SOURCES += unlock/kp_hooks.c' >> ${TARGET}/kernel/nvidia/nvidia-sources.Kbuild
     $SPOOF && sed -e '/^NVIDIA_CFLAGS += .*DEBUG/aNVIDIA_CFLAGS += -DSPOOF_ID' -i ${TARGET}/kernel/nvidia/nvidia.Kbuild
     $CUDAH && sed -e '/^NVIDIA_CFLAGS += .*DEBUG/aNVIDIA_CFLAGS += -DTEST_CUDA_HOST' -i ${TARGET}/kernel/nvidia/nvidia.Kbuild
+    $KLOGT && sed -e '/^NVIDIA_CFLAGS += .*DEBUG/aNVIDIA_CFLAGS += -DKLOGTRACE' -i ${TARGET}/kernel/nvidia/nvidia.Kbuild
     sed -i ${TARGET}/.manifest -e '/^kernel\/nvidia\/i2c_nvswitch.c / a \
 kernel/unlock/kp_hooks.c 0644 KERNEL_MODULE_SRC INHERIT_PATH_DEPTH:1 MODULE:vgpu'
     applypatch ${TARGET} setup-kprobe-hooks.patch
+    $KLOGT && applypatch ${TARGET} filter-for-nvrm-logs.patch
 fi
 
 $DO_MRGD && $OPTVGPU && applypatch ${TARGET} vgpu-kvm-merged-optional-vgpu.patch

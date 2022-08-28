@@ -76,6 +76,24 @@ int cuda_h2(struct kprobe *p, struct pt_regs *regs)
 
 #endif
 
+#ifdef KLOGTRACE
+int klogtrace_enable = -1;
+module_param_named(klogtrace, klogtrace_enable, int, 0600);
+
+static struct kprobe klogtrace;
+
+static int klogtrace_hook(struct kprobe *p, struct pt_regs *regs)
+{
+    if (klogtrace_enable) {
+        int id = regs->di & 0xffffff;
+        int pt = (regs->si >> 16) & 0xffff;
+        int a1 = (regs->di >> 24) & 0xff;
+        int a2 = regs->si & 0xffff;
+        printk(KERN_DEBUG "NVTRACE %06x:%04x %04x%02x\n", id, pt, a2, a1);
+    }
+    return 0;
+}
+#endif
 
 void init_probes(void)
 {
@@ -111,6 +129,23 @@ void init_probes(void)
 #else
     printk(KERN_INFO "nvidia: cuda host kprobe hook NOT compiled in\n");
 #endif
+
+#ifdef KLOGTRACE
+    if (klogtrace_enable >= 0) {
+        klogtrace.pre_handler = klogtrace_hook;
+#ifdef NV_VGPU_KVM_BUILD
+        klogtrace.symbol_name = "_nv030615rm";      // vgpu-kvm blob
+#else
+        klogtrace.symbol_name = "_nv030615rm";      // consumer or grid blob
+#endif
+        klogtrace.offset = 0;
+        if (register_kprobe(&klogtrace) == 0)
+            printk(KERN_INFO "nvidia: klogtrace kprobe hook registered (enable=%d)\n",
+                   klogtrace_enable);
+        else
+            printk(KERN_INFO "nvidia: klogtrace kprobe hook NOT registered\n");
+     }
+#endif
 }
 
 void close_probes(void)
@@ -122,5 +157,10 @@ void close_probes(void)
 #ifdef TEST_CUDA_HOST
     unregister_kprobe(&cuda_p1);
     unregister_kprobe(&cuda_p2);
+#endif
+
+#ifdef KLOGTRACE
+    if (klogtrace_enable >= 0)
+        unregister_kprobe(&klogtrace);
 #endif
 }
