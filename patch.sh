@@ -191,14 +191,21 @@ blobpatch_byte() {
 blobpatch() {
     echo "blobpatch ${2}"
     local status=2
-    while read addr a b && [ -n "${addr}" ]
+    while read addr a b
     do
-        if [ "${addr%:}" != "${addr}" ]; then
+        if [ "${addr###}" != "${addr}" ]; then
+            # skip comments (commeted out lines) if present
+            echo "${addr} ${a} ${b}"
+        elif [ "${addr%:}" != "${addr}" -a -n "${a}" -a -n "${b}" ]; then
             blobpatch_byte ${1} ${addr%:} ${a} ${b} || break
+        elif [ -z "${addr}" ]; then
+            # skip empty lines
+            continue
         else
             sum=`sha256sum -b ${1} | awk '{print $1}'`
-            [ "${sum}" != "${addr}" ] && break
-            status=$(($status - 1))
+            if [ "${sum}" = "${addr}" ]; then
+                status=$(($status - 1))
+            fi
         fi
     done < ${2}
     [ $status -ne 0 ] && echo "blobpatch of ${1} failed, status=$status"
