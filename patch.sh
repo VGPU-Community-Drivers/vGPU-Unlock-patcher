@@ -51,6 +51,7 @@ DO_GRID=false
 DO_MRGD=false
 DO_WSYS=false
 DO_UNLK=true
+DO_LIBS=true
 
 while [ $# -gt 0 -a "${1:0:2}" = "--" ]
 do
@@ -70,6 +71,10 @@ do
         shift
         OPTVGPU=false
     fi
+    if [ "$1" = "--no-libs-patch" ]; then
+        shift
+        DO_LIBS=false
+    fi
     if [ "$1" = "--repack" ]; then
         shift
         REPACK=true
@@ -82,6 +87,7 @@ case "$1" in
         DO_VGPU=true
         SOURCE="${VGPU}"
         TARGET="${VGPU}-patched"
+        DO_LIBS=false
         ;;
     grid)
         DO_GNRL=true
@@ -236,21 +242,37 @@ $DO_GRID && {
 }
 
 if $DO_WSYS && [ ! -e "${WSYS}/nvlddmkm.sys" ]; then
-    echo "source ${WSYS}/nvlddmkm.sys not found, will try to extract it"
+    echo "source ${WSYS}/nvlddmkm.sys not found, will try to extract the installer"
     NV_WIN_DRV_INSTALLER=`ls -1 ${VER_TARGET}*[-_]win*[-_]64bit*.exe | head -n 1`
     [ -e "$NV_WIN_DRV_INSTALLER" ] || die "nvidia windows driver installer version $VER_TAGET not found"
     which 7z &>/dev/null || die "install p7zip-full for 7z tool (http://p7zip.sourceforge.net/)"
     which msexpand &>/dev/null || die "install mscompress (https://github.com/stapelberg/mscompress)"
     rm -rf ${WSYS}
-    SYS_SRC="Display.Driver/nvlddmkm.sy_"
-    echo "extracting nvlddmkm.sys, please wait..."
-    7z x -o${WSYS} "$NV_WIN_DRV_INSTALLER" "${SYS_SRC}" &>/dev/null
-    SYS_SRC="${WSYS}/${SYS_SRC}"
-    SYS_DST=`echo "${SYS_SRC%_}s" | sed -e 's:Display.Driver/::'`
-    [ -e "${SYS_SRC}" ] || die "packed driver (${SYS_SRC}) not found"
-    msexpand < ${SYS_SRC} > ${SYS_DST}
-    rm -rf "${WSYS}/Display.Driver"
-    echo "extracted ${SYS_DST} from windows driver installer"
+    SYS_SRC=( "Display.Driver/nvlddmkm.sy_" )
+    if $DO_LIBS; then
+        SYS_SRC+=(
+            "Display.Driver/nvoglv32.dl_"
+            "Display.Driver/nvoglv64.dl_"
+#            "Display.Driver/nvopencl64.dl_"        # false positive match
+#            "Display.Driver/nvvm64_40_0.dll"       # false positive match
+#            "GFExperience/libcef.dll"              # false positive match
+        )
+    fi
+    echo "extracting the driver installer, please wait..."
+    7z x -o${WSYS} "$NV_WIN_DRV_INSTALLER" ${SYS_SRC[*]} &>/dev/null
+    for i in ${SYS_SRC[*]}
+    do
+        if [ "${i%_}" != "${i}" ]; then
+            t=`basename "$i" | sed -e 's/sy_$/sys/' -e 's/dl_/dll/'`
+            echo "`basename $i` -> $t"
+            msexpand < ${WSYS}/$i > ${WSYS}/$t
+        else
+            echo "$t -> $t"
+            mv ${WSYS}/$i ${WSYS}
+        fi
+    done
+    rm -rf ${WSYS}/{Display.Driver,GFExperience}
+    echo "extracted needed stuff from the driver installer"
 fi
 
 if $DO_MRGD; then
@@ -290,19 +312,28 @@ $CP ${SOURCE} ${TARGET}
 if $DO_WSYS; then
     which osslsigncode &>/dev/null || die "install osslsigncode (https://github.com/mtrojnar/osslsigncode)"
 
-    echo -n "removing sys file signature ... "
-    rm -f ${SOURCE}/nvlddmkm-unsigned.sys
-    osslsigncode remove-signature -in ${SOURCE}/nvlddmkm.sys -out ${SOURCE}/nvlddmkm-unsigned.sys
-    $CP ${SOURCE}/nvlddmkm-unsigned.sys ${TARGET}/nvlddmkm-unsigned.sys
+    rm -f ${SOURCE}/*-unsigned
+    find ${SOURCE} -iname '*.sys' -o -iname '*.dll' | while read i
+    do
+        t=`basename "${i}"`
+        echo "remove signature: ${t}"
+        osslsigncode remove-signature -in ${i} -out ${i}-unsigned &>/dev/null || die "osslsigncode remove-signature failed"
+        $CP ${i}-unsigned ${TARGET}/${t}-unsigned
+    done
 
-    echo "about to patch ${TARGET}/nvlddmkm-unsigned.sys"
-    blobpatch ${TARGET}/nvlddmkm-unsigned.sys patches/wsys-${VER_TARGET}-klogtrace.diff || exit 1
-    blobpatch ${TARGET}/nvlddmkm-unsigned.sys patches/wsys-${VER_TARGET}.diff || exit 1
+    echo "about to patch ${TARGET}/nvlddmkm.sys-unsigned"
+    $KLOGT && { blobpatch ${TARGET}/nvlddmkm.sys-unsigned patches/wsys-${VER_TARGET}-klogtrace.diff || exit 1; }
+    blobpatch ${TARGET}/nvlddmkm.sys-unsigned patches/wsys-${VER_TARGET}.diff || exit 1
 
-    echo -n "creating ${TARGET}/nvlddmkm.sys signed with a test certificate ... "
-    rm -f ${TARGET}/nvlddmkm.sys
-    osslsigncode sign -pkcs12 patches/wsys-test-cert.pfx -pass P@ss0wrd -n "nvidia-driver-vgpu-unlock" \
-        -t http://timestamp.digicert.com -in ${TARGET}/nvlddmkm-unsigned.sys -out ${TARGET}/nvlddmkm.sys
+    for i in ${TARGET}/*-unsigned
+    do
+        t=${i%-unsigned}
+        echo -n "creating ${t} signed with a test certificate ... "
+        [ "${t%.sys}" = "${t}" ] && sed -e 's/\x89\x06\x01\x20/\x40\x00\x01\x20/g' -i ${i}
+        rm -f ${t}
+        osslsigncode sign -pkcs12 patches/wsys-test-cert.pfx -pass P@ss0wrd -n "nvidia-driver-vgpu-unlock" \
+            -t http://timestamp.digicert.com -in ${i} -out ${t}
+    done
 
     exit 0
 fi
@@ -345,6 +376,13 @@ $DO_MRGD && $OPTVGPU && applypatch ${TARGET} vgpu-kvm-merged-optional-vgpu.patch
 
 blobpatch ${TARGET}/kernel/nvidia/nv-kernel.o_binary patches/blob-${VER_BLOB}.diff || exit 1
 $DO_MRGD && { blobpatch ${TARGET}/kernel/nvidia/nv-kernel.o_binary patches/blob-${VER_BLOB}-merged.diff || exit 1; }
+
+$DO_LIBS && {
+    for i in nvidia_drv.so {.,32}/libnvidia-{,e}glcore.so.${VER_TARGET}
+    do
+        sed -e 's/\x89\x06\x01\x20/\x40\x00\x01\x20/g' -i ${TARGET}/${i}
+    done
+}
 
 if $DO_VGPU; then
     applypatch ${TARGET} vcfg-testing.patch
