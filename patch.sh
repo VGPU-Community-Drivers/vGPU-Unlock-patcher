@@ -10,6 +10,7 @@ SPOOF=true
 CUDAH=true
 KLOGT=true
 OPTVGPU=true
+TESTSIGN=true
 REPACK=false
 SWITCH_GRID_TO_GNRL=false
 
@@ -74,6 +75,10 @@ do
     if [ "$1" = "--no-libs-patch" ]; then
         shift
         DO_LIBS=false
+    fi
+    if [ "$1" = "--no-testsign" ]; then
+        shift
+        TESTSIGN=false
     fi
     if [ "$1" = "--repack" ]; then
         shift
@@ -311,6 +316,7 @@ $CP ${SOURCE} ${TARGET}
 
 if $DO_WSYS; then
     which osslsigncode &>/dev/null || die "install osslsigncode (https://github.com/mtrojnar/osslsigncode)"
+    $TESTSIGN && { [ -e patches/wsys-test-cert.pfx ] || die "testsign certificate missing"; }
 
     rm -f ${SOURCE}/*-unsigned
     find ${SOURCE} -iname '*.sys' -o -iname '*.dll' | while read i
@@ -330,11 +336,17 @@ if $DO_WSYS; then
     for i in ${TARGET}/*-unsigned
     do
         t=${i%-unsigned}
-        echo -n "creating ${t} signed with a test certificate ... "
         [ "${t%.sys}" = "${t}" ] && sed -e 's/\x89\x06\x01\x20/\x40\x00\x01\x20/g' -i ${i}
         rm -f ${t}
-        osslsigncode sign -pkcs12 patches/wsys-test-cert.pfx -pass P@ss0wrd -n "nvidia-driver-vgpu-unlock" \
-            -t http://timestamp.digicert.com -in ${i} -out ${t}
+
+        if $TESTSIGN; then
+            echo -n "creating ${t} signed with a test certificate ... "
+            osslsigncode sign -pkcs12 patches/wsys-test-cert.pfx -pass P@ss0wrd -n "nvidia-driver-vgpu-unlock" \
+                -t http://timestamp.digicert.com -in ${i} -out ${t}
+        else
+            echo "testsigning skipped: ${t}"
+            $CP ${i} ${t}
+        fi
     done
 
     exit 0
