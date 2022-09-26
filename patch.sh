@@ -322,7 +322,9 @@ if $DO_WSYS; then
     done
 
     echo "about to patch ${TARGET}/nvlddmkm.sys-unsigned"
-    $KLOGT && { blobpatch ${TARGET}/nvlddmkm.sys-unsigned patches/wsys-${VER_TARGET}-klogtrace.diff || exit 1; }
+    if [ -e patches/wsys-${VER_TARGET}-klogtrace.diff ]; then
+        $KLOGT && { blobpatch ${TARGET}/nvlddmkm.sys-unsigned patches/wsys-${VER_TARGET}-klogtrace.diff || exit 1; }
+    fi
     blobpatch ${TARGET}/nvlddmkm.sys-unsigned patches/wsys-${VER_TARGET}.diff || exit 1
 
     for i in ${TARGET}/*-unsigned
