@@ -11,6 +11,7 @@ CUDAH=true
 KLOGT=true
 OPTVGPU=true
 TESTSIGN=true
+SETUP_TESTSIGN=false
 REPACK=false
 SWITCH_GRID_TO_GNRL=false
 
@@ -79,6 +80,10 @@ do
     if [ "$1" = "--no-testsign" ]; then
         shift
         TESTSIGN=false
+    fi
+    if [ "$1" = "--create-cert" ]; then
+        shift
+        SETUP_TESTSIGN=true
     fi
     if [ "$1" = "--repack" ]; then
         shift
@@ -228,6 +233,15 @@ applypatch() {
     patch -d ${1} -p1 --no-backup-if-mismatch ${3} < patches/${2}
 }
 
+$SETUP_TESTSIGN && {
+    which makecert &>/dev/null || die "install makecert (mono-devel) (https://github.com/mono/mono/tree/main/mcs/tools/security)"
+    echo "creating test code signing certificate"
+    mkdir -p wtestsign
+    makecert -r -n "CN=Test CA" -a sha256 -cy authority -sky signature -sv wtestsign/test-ca.pvk wtestsign/test-ca.cer &>/dev/null || die "makecert Test CA failed"
+    makecert -n "CN=Test SPC" -a sha256 -cy end -sky signature -iv wtestsign/test-ca.pvk -ic wtestsign/test-ca.cer \
+        -eku 1.3.6.1.5.5.7.3.3 -m 36 -sv wtestsign/test-spc.pvk -p12 wtestsign/wsys-test-cert.pfx P@ss0wrd wtestsign/test-spc.cer &>/dev/null || die "makecert Test SPC failed"
+}
+
 $DO_VGPU && extract ${VGPU}.run
 $DO_GRID && {
     if $SWITCH_GRID_TO_GNRL; then
@@ -316,7 +330,7 @@ $CP ${SOURCE} ${TARGET}
 
 if $DO_WSYS; then
     which osslsigncode &>/dev/null || die "install osslsigncode (https://github.com/mtrojnar/osslsigncode)"
-    $TESTSIGN && { [ -e patches/wsys-test-cert.pfx ] || die "testsign certificate missing"; }
+    $TESTSIGN && { [ -e wtestsign/wsys-test-cert.pfx ] || die "testsign certificate missing, try with --create-cert option"; }
 
     rm -f ${SOURCE}/*-unsigned
     find ${SOURCE} -iname '*.sys' -o -iname '*.dll' | while read i
@@ -341,7 +355,7 @@ if $DO_WSYS; then
 
         if $TESTSIGN; then
             echo -n "creating ${t} signed with a test certificate ... "
-            osslsigncode sign -pkcs12 patches/wsys-test-cert.pfx -pass P@ss0wrd -n "nvidia-driver-vgpu-unlock" \
+            osslsigncode sign -pkcs12 wtestsign/wsys-test-cert.pfx -pass P@ss0wrd -n "nvidia-driver-vgpu-unlock" \
                 -t http://timestamp.digicert.com -in ${i} -out ${t}
         else
             echo "testsigning skipped: ${t}"
