@@ -18,23 +18,23 @@ Solution to patch vGPU_Unlock into Nvidia Driver
    fi
    ```
    change the ID's ```0x1E30 0x12BA 0x1E84 0x0000``` to a matching set
-   here:
-   ```0x1E30 0x12BA``` Quadro RTX 6000 to
-   ```0x1E84 0x0000``` RTX 2070 Super
+   here:  
+   ```0x1E30 0x12BA``` Quadro RTX 6000 to  
+   ```0x1E84 0x0000``` RTX 2070 Super  
 
-   E.g. P40 to 1080Ti:
-   ```0x1B38 0x11D9``` Tesla P40 to
-   ```0x1B06 0x120F``` 1080Ti
-   the new vcfgclone line in this example:
+   E.g. P40 to 1080Ti:  
+   ```0x1B38 0x11D9``` Tesla P40 to  
+   ```0x1B06 0x120F``` 1080Ti  
+   the new vcfgclone line in this example:  
    ```vcfgclone ${TARGET}/vgpuConfig.xml 0x1B38 0x11D9 0x1B06 0x120F```
 
-3. Run one of these commands:
-   ``` ./patch.sh general-merge ``` creates a merge vgpu-kvm with consumer driver
-   ``` ./patch.sh vgpu-kvm ``` just patch the vgpu-kvm driver (in case you use secondary gpu) #proxmox
-   ``` ./patch.sh grid-merge ``` creates a merge vgpu-kvm with VGPU guest driver
-   ``` ./patch.sh grid ``` 
-   ``` ./patch.sh general ``` 
-   ``` ./patch.sh vcfg ``` 
+3. Run one of these commands:  
+   ``` ./patch.sh general-merge ``` creates a merge vgpu-kvm with consumer driver  
+   ``` ./patch.sh vgpu-kvm ``` just patch the vgpu-kvm driver (in case you use secondary gpu) #proxmox  
+   ``` ./patch.sh grid-merge ``` creates a merge vgpu-kvm with VGPU guest driver  
+   ``` ./patch.sh grid ```  
+   ``` ./patch.sh general ```  
+   ``` ./patch.sh vcfg ```
 
 ## Changelog
 
