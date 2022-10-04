@@ -3,14 +3,14 @@ Solution to patch vGPU_Unlock into Nvidia Driver
 
 ## Usage
 
-1. pre-downloaded original .run files:
+1. pre-downloaded original `.run` files:
    | Name | Version | Links |
    | --- | ----------- | ----------- |
    | General | NVIDIA-Linux-x86_64-510.85.02 | [Nvidia Download](https://download.nvidia.com/XFree86/Linux-x86_64/510.85.02/NVIDIA-Linux-x86_64-510.85.02.run)  |
    | VGPU | VIDIA-Linux-x86_64-510.85.03-vgpu-kvm| [Nvidia Download](https://enterprise-support.nvidia.com/s/login/?startURL=%2Fs%2F%3Ft%3D1657093205198), [Google Drive](https://drive.google.com/drive/folders/1YwGqtiginXXjSndBBCifTt6SfpVLR9Yx?usp=sharing), [GitHub](https://github.com/VGPU-Community-Drivers/NV-VGPU-Driver/releases/tag/1.0.2) |
    | GRID | NVIDIA-Linux-x86_64-510.85.02-grid | [Nvidia Download](https://enterprise-support.nvidia.com/s/login/?startURL=%2Fs%2F%3Ft%3D1657093205198) [Google Drive](https://drive.google.com/drive/folders/1YwGqtiginXXjSndBBCifTt6SfpVLR9Yx?usp=sharing), [GitHub](https://github.com/VGPU-Community-Drivers/NV-VGPU-Driver/releases/tag/1.0.2) |
 
-2. Setup Spoofing - edit patch.sh file and search 
+2. Setup Spoofing - edit `patch.sh` file and search
    ```
    if $DO_VGPU; then
        applypatch ${TARGET} vcfg-testing.patch
@@ -38,7 +38,7 @@ Solution to patch vGPU_Unlock into Nvidia Driver
 
 ## Changelog
 
-- cudahost=1 nvidia module option of merged driver now works with all versions, enables also raytracing on host
+- `cudahost=1` nvidia module option of merged driver now works with all versions, enables also raytracing on host
 - multiple fixes and tuning in the default profiles for rtx 2070+
 - simplified patching focusing only on vgpu kvm blob, split the patch for merged driver extension
 - supports setup of general-merge converting grid variant to general in case general run file is not available
@@ -47,7 +47,7 @@ Solution to patch vGPU_Unlock into Nvidia Driver
 
 ### Other Options 
 
-`--repack` option that can be used to create unlocked/patched .run file (usually not necessary as you can simply start nvidia-installer from the directory).
+`--repack` option that can be used to create unlocked/patched `.run` file (usually not necessary as you can simply start nvidia-installer from the directory).
 
 ### Credits
 - Thanks to the discord user @mbuchel for the experimental patches
