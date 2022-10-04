@@ -17,24 +17,24 @@ Solution to patch vGPU_Unlock into Nvidia Driver
        vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1E84 0x0000
    fi
    ```
-   change the ID's ```0x1E30 0x12BA 0x1E84 0x0000``` to a matching set
+   change the ID's `0x1E30 0x12BA 0x1E84 0x0000` to a matching set
    here:  
-   ```0x1E30 0x12BA``` Quadro RTX 6000 to  
-   ```0x1E84 0x0000``` RTX 2070 Super  
+   `0x1E30 0x12BA` Quadro RTX 6000 to  
+   `0x1E84 0x0000` RTX 2070 Super  
 
    E.g. P40 to 1080Ti:  
-   ```0x1B38 0x11D9``` Tesla P40 to  
-   ```0x1B06 0x120F``` 1080Ti  
+   `0x1B38 0x11D9` Tesla P40 to  
+   `0x1B06 0x120F` 1080Ti  
    the new vcfgclone line in this example:  
-   ```vcfgclone ${TARGET}/vgpuConfig.xml 0x1B38 0x11D9 0x1B06 0x120F```
+   `vcfgclone ${TARGET}/vgpuConfig.xml 0x1B38 0x11D9 0x1B06 0x120F`
 
 3. Run one of these commands:  
-   ``` ./patch.sh general-merge ``` creates a merge vgpu-kvm with consumer driver  
-   ``` ./patch.sh vgpu-kvm ``` just patch the vgpu-kvm driver (in case you use secondary gpu) #proxmox  
-   ``` ./patch.sh grid-merge ``` creates a merge vgpu-kvm with VGPU guest driver  
-   ``` ./patch.sh grid ```  
-   ``` ./patch.sh general ```  
-   ``` ./patch.sh vcfg ```
+   `./patch.sh general-merge` creates a merge vgpu-kvm with consumer driver  
+   `./patch.sh vgpu-kvm` just patch the vgpu-kvm driver (in case you use secondary gpu) #proxmox  
+   `./patch.sh grid-merge` creates a merge vgpu-kvm with VGPU guest driver  
+   `./patch.sh grid`  
+   `./patch.sh general`  
+   `./patch.sh vcfg`
 
 ## Changelog
 
@@ -47,7 +47,7 @@ Solution to patch vGPU_Unlock into Nvidia Driver
 
 ### Other Options 
 
-```--repack ``` option that can be used to create unlocked/patched .run file (usually not necessary as you can simply start nvidia-installer from the directory).
+`--repack` option that can be used to create unlocked/patched .run file (usually not necessary as you can simply start nvidia-installer from the directory).
 
 ### Credits
 - Thanks to the discord user @mbuchel for the experimental patches
