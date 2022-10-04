@@ -3,7 +3,7 @@ Solution to patch vGPU_Unlock into Nvidia Driver
 
 ## Usage
 
-1. pre-downloaded original `.run` files:
+1. Pre-download original `.run` files:
    | Name | Version | Links |
    | --- | ----------- | ----------- |
    | General | NVIDIA-Linux-x86_64-510.85.02 | [Nvidia Download](https://download.nvidia.com/XFree86/Linux-x86_64/510.85.02/NVIDIA-Linux-x86_64-510.85.02.run)  |
@@ -17,7 +17,7 @@ Solution to patch vGPU_Unlock into Nvidia Driver
        vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1E84 0x0000
    fi
    ```
-   change the ID's `0x1E30 0x12BA 0x1E84 0x0000` to a matching set
+   Change the ID's `0x1E30 0x12BA 0x1E84 0x0000` to a matching set
    here:  
    `0x1E30 0x12BA` Quadro RTX 6000 to  
    `0x1E84 0x0000` RTX 2070 Super  
@@ -25,7 +25,7 @@ Solution to patch vGPU_Unlock into Nvidia Driver
    E.g. P40 to 1080Ti:  
    `0x1B38 0x11D9` Tesla P40 to  
    `0x1B06 0x120F` 1080Ti  
-   the new vcfgclone line in this example:  
+   The new vcfgclone line in this example:  
    `vcfgclone ${TARGET}/vgpuConfig.xml 0x1B38 0x11D9 0x1B06 0x120F`
 
 3. Run one of these commands:  
