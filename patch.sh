@@ -31,7 +31,7 @@ case `stat -f --format=%T .` in
 esac
 
 VERIFY_BLOBPATCH=false
-if [ -n "`which xxd`" ]; then
+if [ -n "`which xxd &> /dev/null`" ]; then
     VERIFY_BLOBPATCH=true
 fi
 
