@@ -89,7 +89,14 @@ static int klogtrace_hook(struct kprobe *p, struct pt_regs *regs)
         int pt = (regs->si >> 16) & 0xffff;
         int a1 = (regs->di >> 24) & 0xff;
         int a2 = regs->si & 0xffff;
-        printk(KERN_DEBUG "NVTRACE %06x:%04x %04x%02x\n", id, pt, a2, a1);
+        if (id == 0xbfe247 && pt == 0x04d0 && a2 == 0x4000 && a1 == 0x0e) {
+            static int prncount = 8;
+            if (prncount) {
+                printk(KERN_DEBUG "NVTRACE %06x:%04x %04x%02x\n", id, pt, a2, a1);
+                prncount--;
+            }
+        } else
+            printk(KERN_DEBUG "NVTRACE %06x:%04x %04x%02x\n", id, pt, a2, a1);
     }
     return 0;
 }
