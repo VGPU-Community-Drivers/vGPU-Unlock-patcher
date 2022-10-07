@@ -24,23 +24,23 @@ module_param_named(cudahost, cuda_host_enable, int, 0600);
 
 static struct kprobe cuda_p1, cuda_p2;
 
-int cuda_h1(struct kprobe *p, struct pt_regs *regs)
+void cuda_h1(struct kprobe *p, struct pt_regs *regs, unsigned long flags)
 {
-    printk(KERN_INFO "nvidia: cuda_h1 [rsi+0x412](0x%zx)==0x%02x [rdi+0x54d](0x%zx)==0x%02x\n",
-        regs->si + 0x412, *(u8 *)(regs->si + 0x412), regs->di + 0x54d, *(u8 *)(regs->di + 0x54d));
+    printk(KERN_INFO "nvidia: cuda_h1 [rsi+0x412](0x%zx)==0x%02x [rsi+0x417](0x%zx)==0x%02x [rsi+0x429](0x%zx)==0x%02x\n",
+        regs->si + 0x412, *(u8 *)(regs->si + 0x412), regs->si + 0x417, *(u8 *)(regs->si + 0x417), regs->si + 0x429, *(u8 *)(regs->si + 0x429));
     if (cuda_host_enable >= 0) {
         *(u8 *)(regs->si + 0x412) = cuda_host_enable;
-        printk(KERN_INFO "nvidia: cuda_h1 [rsi+0x412](0x%zx) set to 0x%02x\n",
-            regs->si + 0x412, *(u8 *)(regs->si + 0x412));
+        *(u8 *)(regs->si + 0x429) = cuda_host_enable;
+        printk(KERN_INFO "nvidia: cuda_h1 [rsi+0x412](0x%zx) set to 0x%02x, [rsi+0x429](0x%zx) set to 0x%02x\n",
+            regs->si + 0x412, *(u8 *)(regs->si + 0x412), regs->si + 0x429, *(u8 *)(regs->si + 0x429));
     }
     //dump_stack();
-    return 0;
 }
 
 int cuda_h2(struct kprobe *p, struct pt_regs *regs)
 {
-    printk(KERN_INFO "nvidia: cuda_h2 [r13+0x412](0x%zx)==0x%02x [r13+0x414](0x%zx)==0x%02x\n",
-        regs->r13 + 0x412, *(u8 *)(regs->r13 + 0x412), regs->r13 + 0x414, *(u8 *)(regs->r13 + 0x414));
+    printk(KERN_INFO "nvidia: cuda_h2 [r13+0x412](0x%zx)==0x%02x [r13+0x417](0x%zx)==0x%02x\n",
+        regs->r13 + 0x412, *(u8 *)(regs->r13 + 0x412), regs->r13 + 0x417, *(u8 *)(regs->r13 + 0x417));
     //dump_stack();
     /*
         Call Trace:
@@ -118,9 +118,9 @@ void init_probes(void)
 #endif
 
 #ifdef TEST_CUDA_HOST
-    cuda_p1.pre_handler = cuda_h1;
+    cuda_p1.post_handler = cuda_h1;
     cuda_p1.symbol_name = "_nv028447rm";
-    cuda_p1.offset = 0x32;
+    cuda_p1.offset = 0;
     if (register_kprobe(&cuda_p1) == 0)
         printk(KERN_INFO "nvidia: cuda_p1 kprobe hook registered\n");
     else
