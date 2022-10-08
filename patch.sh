@@ -1,5 +1,7 @@
 #!/bin/bash
 
+BASEDIR=$(dirname $0)
+
 GNRL="NVIDIA-Linux-x86_64-510.85.02"
 VGPU="NVIDIA-Linux-x86_64-510.85.03-vgpu-kvm"
 GRID="NVIDIA-Linux-x86_64-510.85.02-grid"
@@ -236,7 +238,7 @@ blobpatch() {
 
 applypatch() {
     echo "applypatch ${2} ${3}"
-    patch -d ${1} -p1 --no-backup-if-mismatch ${3} < patches/${2}
+    patch -d ${1} -p1 --no-backup-if-mismatch ${3} < "$BASEDIR/patches/${2}"
 }
 
 $SETUP_TESTSIGN && {
@@ -348,10 +350,10 @@ if $DO_WSYS; then
     done
 
     echo "about to patch ${TARGET}/nvlddmkm.sys-unsigned"
-    if [ -e patches/wsys-${VER_TARGET}-klogtrace.diff ]; then
-        $KLOGT && { blobpatch ${TARGET}/nvlddmkm.sys-unsigned patches/wsys-${VER_TARGET}-klogtrace.diff || exit 1; }
+    if [ -e "$BASEDIR/patches/wsys-${VER_TARGET}-klogtrace.diff" ]; then
+        $KLOGT && { blobpatch ${TARGET}/nvlddmkm.sys-unsigned "$BASEDIR/patches/wsys-${VER_TARGET}-klogtrace.diff" || exit 1; }
     fi
-    blobpatch ${TARGET}/nvlddmkm.sys-unsigned patches/wsys-${VER_TARGET}.diff || exit 1
+    blobpatch ${TARGET}/nvlddmkm.sys-unsigned "$BASEDIR/patches/wsys-${VER_TARGET}.diff" || exit 1
 
     for i in ${TARGET}/*-unsigned
     do
@@ -380,8 +382,8 @@ fi
 if $DO_UNLK; then
     echo "applying vgpu_unlock hooks"
     mkdir -p ${TARGET}/kernel/unlock
-    $CP unlock/kern.ld ${TARGET}/kernel/nvidia
-    $CP unlock/vgpu_unlock_hooks.c ${TARGET}/kernel/unlock
+    $CP "$BASEDIR/unlock/kern.ld" ${TARGET}/kernel/nvidia
+    $CP "$BASEDIR/unlock/vgpu_unlock_hooks.c" ${TARGET}/kernel/unlock
     echo 'ldflags-y += -T $(src)/nvidia/kern.ld' >> ${TARGET}/kernel/nvidia/nvidia.Kbuild
     sed -e 's:^\(#include "nv-time\.h"\):\1\n#include "../unlock/vgpu_unlock_hooks.c":' -i ${TARGET}/kernel/nvidia/os-interface.c
     sed -i ${TARGET}/.manifest -e '/^kernel\/nvidia\/i2c_nvswitch.c / a \
@@ -395,7 +397,7 @@ if $SPOOF || $CUDAH || $KLOGT; then
     $CUDAH && echo "applying host cuda test kprobe hook"
     $KLOGT && echo "applying klogtrace kprobe hook"
     mkdir -p ${TARGET}/kernel/unlock
-    $CP patches/kp_hooks.c ${TARGET}/kernel/unlock
+    $CP "$BASEDIR/patches/kp_hooks.c" ${TARGET}/kernel/unlock
     echo 'NVIDIA_SOURCES += unlock/kp_hooks.c' >> ${TARGET}/kernel/nvidia/nvidia-sources.Kbuild
     $SPOOF && sed -e '/^NVIDIA_CFLAGS += .*DEBUG/aNVIDIA_CFLAGS += -DSPOOF_ID' -i ${TARGET}/kernel/nvidia/nvidia.Kbuild
     $CUDAH && sed -e '/^NVIDIA_CFLAGS += .*DEBUG/aNVIDIA_CFLAGS += -DTEST_CUDA_HOST' -i ${TARGET}/kernel/nvidia/nvidia.Kbuild
@@ -408,8 +410,8 @@ fi
 
 $DO_MRGD && $OPTVGPU && applypatch ${TARGET} vgpu-kvm-merged-optional-vgpu.patch
 
-blobpatch ${TARGET}/kernel/nvidia/nv-kernel.o_binary patches/blob-${VER_BLOB}.diff || exit 1
-$DO_MRGD && { blobpatch ${TARGET}/kernel/nvidia/nv-kernel.o_binary patches/blob-${VER_BLOB}-merged.diff || exit 1; }
+blobpatch ${TARGET}/kernel/nvidia/nv-kernel.o_binary "$BASEDIR/patches/blob-${VER_BLOB}.diff" || exit 1
+$DO_MRGD && { blobpatch ${TARGET}/kernel/nvidia/nv-kernel.o_binary "$BASEDIR/patches/blob-${VER_BLOB}-merged.diff" || exit 1; }
 
 $DO_LIBS && {
     for i in nvidia_drv.so {.,32}/libnvidia-{,e}glcore.so.${VER_TARGET}
