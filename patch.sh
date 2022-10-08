@@ -57,38 +57,44 @@ DO_LIBS=true
 
 while [ $# -gt 0 -a "${1:0:2}" = "--" ]
 do
-    if [ "$1" = "--no-spoof" ]; then
-        shift
-        SPOOF=false
-    fi
-    if [ "$1" = "--no-host-cuda" ]; then
-        shift
-        CUDAH=false
-    fi
-    if [ "$1" = "--no-klogtrace" ]; then
-        shift
-        KLOGT=false
-    fi
-    if [ "$1" = "--no-opt-vgpu" ]; then
-        shift
-        OPTVGPU=false
-    fi
-    if [ "$1" = "--no-libs-patch" ]; then
-        shift
-        DO_LIBS=false
-    fi
-    if [ "$1" = "--no-testsign" ]; then
-        shift
-        TESTSIGN=false
-    fi
-    if [ "$1" = "--create-cert" ]; then
-        shift
-        SETUP_TESTSIGN=true
-    fi
-    if [ "$1" = "--repack" ]; then
-        shift
-        REPACK=true
-    fi
+    case "$1" in
+        --no-spoof)
+            shift
+            SPOOF=false
+            ;;
+        --no-host-cuda)
+            shift
+            CUDAH=false
+            ;;
+        --no-klogtrace)
+            shift
+            KLOGT=false
+            ;;
+        --no-opt-vgpu)
+            shift
+            OPTVGPU=false
+            ;;
+        --no-libs-patch)
+            shift
+            DO_LIBS=false
+            ;;
+        --no-testsign)
+            shift
+            TESTSIGN=false
+            ;;
+        --create-cert)
+            shift
+            SETUP_TESTSIGN=true
+            ;;
+        --repack)
+            shift
+            REPACK=true
+            ;;
+        *)
+            echo "Unknown option $1"
+            shift
+            ;;
+    esac
 done
 
 case "$1" in
