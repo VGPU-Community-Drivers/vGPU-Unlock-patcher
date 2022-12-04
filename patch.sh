@@ -32,11 +32,6 @@ case `stat -f --format=%T .` in
         ;;
 esac
 
-VERIFY_BLOBPATCH=false
-if [ -n "`which xxd`" ]; then
-    VERIFY_BLOBPATCH=true
-fi
-
 vcfgclone() {
     echo "vcfgclone ${2#0x}:${3#0x} -> ${4#0x}:${5#0x}"
     sed -e '/<pgpu/ b found' -e b -e ':found' -e '/<\/pgpu>/ b clone' -e N -e 'b found' \
@@ -194,21 +189,12 @@ extract() {
 }
 
 blobpatch_byte() {
-    echo -n "blobpatch ${2}: ${3} ${4}"
-    CHK=""
-    if $VERIFY_BLOBPATCH; then
-        CHK=$(dd if=${1} skip=`printf "%d" 0x${2}` bs=1 count=1 2>/dev/null | xxd -u -i | sed -e 's/ *0[xX]//')
-    fi
-    if [ -z "${CHK}" -o "${CHK}" = "${3}" ]; then
+    echo "blobpatch ${2}: ${3} ${4}"
+    CHK=$(od -t x1 -A n --skip-bytes=`printf '%d' 0x${2}` --read-bytes=1 "${1}" 2>/dev/null | tr -d ' \n')
+    if [ "${CHK^^}" = "${3}" ]; then
         echo -e -n "\x${4}" | dd of=${1} seek=`printf "%d" 0x${2}` bs=1 count=1 conv=notrunc &>/dev/null
-        if [ -n "${CHK}" ]; then
-            echo " [x]"
-        else
-            echo
-        fi
     else
-        echo
-        die "blobpatch failed: expected ${3} got ${CHK} instead"
+        die "blobpatch failed: expected ${3} got ${CHK^^} instead"
     fi
 }
 
