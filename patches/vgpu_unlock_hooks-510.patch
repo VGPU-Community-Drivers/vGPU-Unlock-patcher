@@ -2,24 +2,33 @@ diff --git a/kernel/unlock/vgpu_unlock_hooks.c b/kernel/unlock/vgpu_unlock_hooks
 index 9be623f..fc76cca 100644
 --- a/kernel/unlock/vgpu_unlock_hooks.c
 +++ b/kernel/unlock/vgpu_unlock_hooks.c
-@@ -735,8 +735,18 @@ static vgpu_unlock_vgpu_t vgpu_unlock_vgpu[] =
- 	VGPU(0x1e30, 0x143c, "GRID RTX6000-4A"),
- 	VGPU(0x1e30, 0x143d, "GRID RTX6000-6A"),
+@@ -586,9 +586,9 @@ vgpu_unlock_vgpu_t;
+ 
+ /* Helper macro to initialize the structure above. */
+ #define VGPU(dev_id, subsys_id, name) \
+-	{ (10 + 2 * strlen(name) + 15) / 16, /* num_blocks */     \
+-	  strlen(name),                      /* name1_len */      \
+-	  strlen(name),                      /* name2_len */      \
++	{ (10 + 2 * (sizeof(name)-1) + 15) / 16, /* num_blocks */ \
++	  sizeof(name)-1,                    /* name1_len */      \
++	  sizeof(name)-1,                    /* name2_len */      \
+ 	  (dev_id),                          /* dev_id */         \
+ 	  0,                                 /* vend_id */        \
+ 	  (subsys_id),                       /* subsys_id */      \
+@@ -737,6 +737,16 @@ static vgpu_unlock_vgpu_t vgpu_unlock_vgpu[] =
  	VGPU(0x1e30, 0x143e, "GRID RTX6000-8A"),
--	VGPU(0x1e30, 0x143f, "GRID RTX6000-12A"),
--	VGPU(0x1e30, 0x1440, "GRID RTX6000-24A"),
+	VGPU(0x1e30, 0x143f, "GRID RTX6000-12A"),
+	VGPU(0x1e30, 0x1440, "GRID RTX6000-24A"),
 +
 +	/* for testing with Turing */
-+	VGPU(0x1e30, 0x1441, "GRID RTX8000-1B"),
-+	VGPU(0x1e30, 0x1442, "GRID RTX8000-2B"),
-+	VGPU(0x1e30, 0x13b9, "GRID RTX2070-1"),
-+	VGPU(0x1e30, 0x13ba, "GRID RTX2070-2"),
-+	VGPU(0x1e30, 0x13bb, "GRID RTX2070-3"),
-+	VGPU(0x1e30, 0x13bc, "GRID RTX2070-4"),
-+	VGPU(0x1e30, 0x13bd, "GRID RTX2070-5"),
-+	VGPU(0x1e30, 0x13be, "GRID RTX2070-6"),
-+	VGPU(0x1e30, 0x13cb, "GRID RTX2070-7"),
-+	VGPU(0x1e30, 0x13cc, "GRID RTX2070-8"),
++	VGPU(0x1e30, 0x13b9, "GeForce RTX 2070-1"),
++	VGPU(0x1e30, 0x13ba, "GeForce RTX 2070-2"),
++	VGPU(0x1e30, 0x13bb, "GeForce RTX 2070-3"),
++	VGPU(0x1e30, 0x13bc, "GeForce RTX 2070-4"),
++	VGPU(0x1e30, 0x13bd, "GeForce RTX 2070-5"),
++	VGPU(0x1e30, 0x13be, "GeForce RTX 2070-6"),
++	VGPU(0x1e30, 0x13cb, "GeForce RTX 2070-7"),
++	VGPU(0x1e30, 0x13cc, "GeForce RTX 2070-8"),
  
  	/* RTX A6000 (Ampere) */
  	VGPU(0x2230, 0x14fa, "NVIDIA RTXA6000-1B"),

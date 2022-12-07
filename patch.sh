@@ -2,11 +2,11 @@
 
 BASEDIR=$(dirname $0)
 
-GNRL="NVIDIA-Linux-x86_64-510.85.02"
-VGPU="NVIDIA-Linux-x86_64-510.85.03-vgpu-kvm"
-GRID="NVIDIA-Linux-x86_64-510.85.02-grid"
-WSYS="NVIDIA-Windows-x86_64-512.15"
-#WSYS="NVIDIA-Windows-x86_64-513.46"
+GNRL="NVIDIA-Linux-x86_64-525.60.11"
+VGPU="NVIDIA-Linux-x86_64-525.60.12-vgpu-kvm"
+GRID="NVIDIA-Linux-x86_64-525.60.13-grid"
+#WSYS="NVIDIA-Windows-x86_64-512.15"
+WSYS="NVIDIA-Windows-x86_64-527.41"
 
 SPOOF=true
 CUDAH=true
@@ -344,7 +344,7 @@ if $DO_WSYS; then
     for i in ${TARGET}/*-unsigned
     do
         t=${i%-unsigned}
-        [ "${t%.sys}" = "${t}" ] && sed -e 's/\x89\x06\x01\x20/\x40\x00\x01\x20/g' -i ${i}
+        [ "${t%.sys}" = "${t}" ] && sed -e 's/\x89\x06\x01\x20/\x40\x00\x01\x20/g' -e 's/\xb8\x89\x06\x01\x00/\xb8\x40\x00\x01\x00/g' -i ${i}
         rm -f ${t}
 
         if $TESTSIGN; then
@@ -385,9 +385,9 @@ if $SPOOF || $CUDAH || $KLOGT; then
     mkdir -p ${TARGET}/kernel/unlock
     $CP "$BASEDIR/patches/kp_hooks.c" ${TARGET}/kernel/unlock
     echo 'NVIDIA_SOURCES += unlock/kp_hooks.c' >> ${TARGET}/kernel/nvidia/nvidia-sources.Kbuild
-    $SPOOF && sed -e '/^NVIDIA_CFLAGS += .*DEBUG/aNVIDIA_CFLAGS += -DSPOOF_ID' -i ${TARGET}/kernel/nvidia/nvidia.Kbuild
-    $CUDAH && sed -e '/^NVIDIA_CFLAGS += .*DEBUG/aNVIDIA_CFLAGS += -DTEST_CUDA_HOST' -i ${TARGET}/kernel/nvidia/nvidia.Kbuild
-    $KLOGT && sed -e '/^NVIDIA_CFLAGS += .*DEBUG/aNVIDIA_CFLAGS += -DKLOGTRACE' -i ${TARGET}/kernel/nvidia/nvidia.Kbuild
+    $SPOOF && sed -e '/^NVIDIA_CFLAGS += .*BIT_MACROS$/aNVIDIA_CFLAGS += -DSPOOF_ID' -i ${TARGET}/kernel/nvidia/nvidia.Kbuild
+    $CUDAH && sed -e '/^NVIDIA_CFLAGS += .*BIT_MACROS$/aNVIDIA_CFLAGS += -DTEST_CUDA_HOST' -i ${TARGET}/kernel/nvidia/nvidia.Kbuild
+    $KLOGT && sed -e '/^NVIDIA_CFLAGS += .*BIT_MACROS$/aNVIDIA_CFLAGS += -DKLOGTRACE' -i ${TARGET}/kernel/nvidia/nvidia.Kbuild
     sed -i ${TARGET}/.manifest -e '/^kernel\/nvidia\/i2c_nvswitch.c / a \
 kernel/unlock/kp_hooks.c 0644 KERNEL_MODULE_SRC INHERIT_PATH_DEPTH:1 MODULE:vgpu'
     applypatch ${TARGET} setup-kprobe-hooks.patch
@@ -412,9 +412,14 @@ if $DO_VGPU; then
     vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1E81 0x0000	# RTX 2080 super 8GB
     vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1f03 0x0000	# RTX 2060 12GB
     vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x2184 0x0000	# GTX 1660 6GB
+    vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1ff2 0x0000	# Quadro T400 4GB
     vcfgclone ${TARGET}/vgpuConfig.xml 0x1B38 0x0 0x1C82 0x0000		# GTX 1050 Ti 4GB
     vcfgclone ${TARGET}/vgpuConfig.xml 0x1B38 0x0 0x1B81 0x0000		# GTX 1070
-    vcfgclone ${TARGET}/vgpuConfig.xml 0x13F2 0x0 0x17FD 0x0000		# Tesla M40
+    vcfgclone ${TARGET}/vgpuConfig.xml 0x13F2 0x0 0x17FD 0x0000		# Tesla M40 -> Tesla M60
+
+    vcfgclone ${TARGET}/vgpuConfig.xml 0x13F2 0x0 0x13C0 0x0000		# GTX 980 -> Tesla M60
+    vcfgclone ${TARGET}/vgpuConfig.xml 0x13BD 0x1160 0x139A 0x0000	# GTX 950M -> Tesla M10
+    vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1f95 0x0000  # GTX 1650 Ti Mobile 4GB
 fi
 
 if $REPACK; then
