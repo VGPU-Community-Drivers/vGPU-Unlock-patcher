@@ -5,10 +5,8 @@ Solution to patch vGPU_Unlock into Nvidia Driver
 
 1. Pre-download original `.run` files:
    | Name | Version | Links |
-   | --- | ----------- | ----------- |
-   | General | NVIDIA-Linux-x86_64-510.85.02 | [Nvidia Download](https://download.nvidia.com/XFree86/Linux-x86_64/510.85.02/NVIDIA-Linux-x86_64-510.85.02.run)  |
-   | VGPU | VIDIA-Linux-x86_64-510.85.03-vgpu-kvm| [Nvidia Download](https://enterprise-support.nvidia.com/s/login/?startURL=%2Fs%2F%3Ft%3D1657093205198), [Google Drive](https://drive.google.com/drive/folders/1YwGqtiginXXjSndBBCifTt6SfpVLR9Yx?usp=sharing), [GitHub](https://github.com/VGPU-Community-Drivers/NV-VGPU-Driver/releases/tag/1.0.2) |
-   | GRID | NVIDIA-Linux-x86_64-510.85.02-grid | [Nvidia Download](https://enterprise-support.nvidia.com/s/login/?startURL=%2Fs%2F%3Ft%3D1657093205198), [Google Drive](https://drive.google.com/drive/folders/1YwGqtiginXXjSndBBCifTt6SfpVLR9Yx?usp=sharing), [GitHub](https://github.com/VGPU-Community-Drivers/NV-VGPU-Driver/releases/tag/1.0.2) |
+   | ----------- | ----------- | ----------- |
+   | NVIDIA-GRID-Linux-KVM-525.60.12-525.60.13-527.41 | Grid v15.0 | [Nvidia Download](https://enterprise-support.nvidia.com/s/login/?startURL=%2Fs%2F%3Ft%3D1657093205198), [Google Drive](https://drive.google.com/drive/folders/1Mwk0diSegzHx-7BeJdujPa1Vgyw5fd3s), [GitHub](https://github.com/VGPU-Community-Drivers/NV-VGPU-Driver/releases2) |
 
 2. Setup Spoofing - edit `patch.sh` file and search
    ```
