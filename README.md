@@ -1,6 +1,8 @@
 # vGPU-Unlock-patcher
 Solution to patch vGPU_Unlock into Nvidia Driver
 
+[Join VGPU-Unlock discord for Support](https://discord.gg/8YUeQtSu)
+
 ## Usage
 
 1. Pre-download original `.run` files:
