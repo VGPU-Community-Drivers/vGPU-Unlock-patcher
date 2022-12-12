@@ -1,0 +1,338 @@
+From: snowman <snowman@localhost.localdomain>
+Subject: [PATCH] nvdrv 525.60.12 vgpu kvm kernel 6.0 compat
+
+tested to work with 6.0.11 linux kernel, it may work with kernels
+since v5.19-rc4-38-g34a255e67615 and possibly with kernels older
+than v5.18-rc6-74-g8e432bb015b6, but not with versions in between these
+two, i.e. it would need another build conditional for 5.18 for example
+also tested to work with 5.10 linux kernel
+---
+ kernel/conftest.sh                           |  4 +-
+ kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.c   | 99 ++++++++++++++++----
+ kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.h   |  5 +
+ kernel/nvidia-vgpu-vfio/vgpu-vfio-mdev.c     | 10 ++
+ kernel/nvidia-vgpu-vfio/vgpu-vfio-pci-core.c |  9 ++
+ 5 files changed, 108 insertions(+), 19 deletions(-)
+
+diff --git a/kernel/conftest.sh b/kernel/conftest.sh
+index 7a5c5e4..0c8bbb7 100755
+--- a/kernel/conftest.sh
++++ b/kernel/conftest.sh
+@@ -2625,10 +2625,10 @@ compile_test() {
+             #include <linux/pci.h>
+             #include <linux/vfio.h>
+             int vfio_pin_pages(struct vfio_device *device,
+-                               unsigned long *user_pfn,
++                               dma_addr_t iova,
+                                int npage,
+                                int prot,
+-                               unsigned long *phys_pfn) {
++                               struct page **pages) {
+                 return 0;
+             }" > conftest$$.c
+ 
+diff --git a/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.c b/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.c
+index 2cf4f6c..8fecad0 100644
+--- a/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.c
++++ b/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.c
+@@ -363,23 +363,32 @@ struct device *nv_get_device(vgpu_dev_t *vgpu_dev)
+ static int nv_vgpu_vfio_notifier(struct notifier_block *nb, unsigned long action,
+                                  void *data)
+ {
++#ifndef NV_VFIO_PIN_PAGES_HAS_VFIO_DEVICE_ARG
+     if (action == VFIO_IOMMU_NOTIFY_DMA_UNMAP)
+     {
+         vgpu_dev_t *vgpu_dev = container_of(nb, vgpu_dev_t, nb);
++        struct vfio_iommu_type1_dma_unmap *unmap = data;
++        nv_vgpu_vfio_dma_unmap_callback(vgpu_dev, unmap->iova, unmap->size);
++    }
++#endif
++    return 0;
++}
++
++void nv_vgpu_vfio_dma_unmap_callback(struct vgpu_dev_s *vgpu_dev, u64 iova, u64 size)
++{
+         gpfn_node_t *gpfn_node = NULL;
+         unsigned long gpfn;
+-        struct vfio_iommu_type1_dma_unmap *unmap = data;
+         NvU64 i;
+         int ret;
+ 
+         down(&vgpu_dev->ops_lock);
+ 
+         NV_VGPU_DEV_LOG(VGPU_INFO, vgpu_dev,
+-                        "Unmap notifier called for iova: 0x%llx size: 0x%llx\n",
+-                        unmap->iova, unmap->size);
++                        "dma_unmap callback called for iova: 0x%llx size: 0x%llx\n",
++                        iova, size);
+ 
+-        gpfn = unmap->iova >> PAGE_SHIFT;
+-        for (i = 0; i < unmap->size; i += PAGE_SIZE)
++        gpfn = iova >> PAGE_SHIFT;
++        for (i = 0; i < size; i += PAGE_SIZE)
+         {
+             if (!RB_EMPTY_ROOT(&vgpu_dev->gpfn_list))
+             {
+@@ -391,20 +400,21 @@ static int nv_vgpu_vfio_notifier(struct notifier_block *nb, unsigned long action
+             if (vgpu_dev->mapping_cache && vgpu_dev->mapping_cache[gpfn])
+             {
+ #if defined(NV_VFIO_PIN_PAGES_HAS_VFIO_DEVICE_ARG)
+-                ret = vfio_unpin_pages(vgpu_dev->vdev,
++                vfio_unpin_pages(vgpu_dev->vdev, gpfn << PAGE_SHIFT, 1);
++                ret = 1;
+ #else
+                 ret = vfio_unpin_pages(vgpu_dev->dev,
+-#endif
+                                        (long unsigned int *)&gpfn, 1);
++#endif
+                 if (ret != 1)
+                 {
+                     NV_VGPU_DEV_LOG(VGPU_ERR, vgpu_dev,
+-                                    "Failed to unpin dirty pinned page in notifier. gpfn: 0x%lx\n",
++                                    "Failed to unpin dirty pinned page in dma_unmap callback. gpfn: 0x%lx\n",
+                                     gpfn);
+                 }
+                 else
+                     NV_VGPU_DEV_LOG(VGPU_INFO, vgpu_dev,
+-                                    "Guest pfn 0x%lx unpinned from unmap notifier\n", gpfn);
++                                    "Guest pfn 0x%lx unpinned from dma_unmap callback\n", gpfn);
+ #if defined(DEBUG)
+                 vgpu_dev->migration_info.dirty_pfn_count -= 1;
+ #endif
+@@ -419,8 +429,6 @@ static int nv_vgpu_vfio_notifier(struct notifier_block *nb, unsigned long action
+         }
+ 
+         up(&vgpu_dev->ops_lock);
+-    }
+-    return 0;
+ }
+ 
+ NV_STATUS nv_get_vgpu_type_id(struct kobject *kobj, struct device *dev,
+@@ -2374,11 +2382,20 @@ static void nv_vgpu_clear_mapping_cache(vgpu_dev_t *vgpu_dev)
+         {
+             // unpin these pages
+ #if defined(NV_VFIO_PIN_PAGES_HAS_VFIO_DEVICE_ARG)
+-            ret = vfio_unpin_pages(vgpu_dev->vdev,
++            int j, k;
++            j = 0;
++            while (j < pfn_count) {
++                for (k = j + 1; k < pfn_count; k++)
++                    if (gpfn_buffer[k - 1] + 1 != gpfn_buffer[k])
++                        break;
++                vfio_unpin_pages(vgpu_dev->vdev, gpfn_buffer[j] << PAGE_SHIFT, k - j);
++                j = k;
++            }
++            ret = pfn_count;
+ #else
+             ret = vfio_unpin_pages(vgpu_dev->dev,
+-#endif
+                                    (long unsigned int *)gpfn_buffer, pfn_count);
++#endif
+ 
+             if (ret != pfn_count)
+             {
+@@ -3275,7 +3292,18 @@ NV_STATUS nv_vgpu_unpin_pages(NvU64 *buffer, NvU32 pfn_count,
+             count = pfn_count;
+ 
+ #if defined(NV_VFIO_PIN_PAGES_HAS_VFIO_DEVICE_ARG)
+-        ret = vfio_unpin_pages(vgpu_dev->vdev, gpfn_buffer, count);
++        {
++            int j, k;
++            j = 0;
++            while (j < count) {
++                for (k = j + 1; k < count; k++)
++                    if (gpfn_buffer[k - 1] + 1 != gpfn_buffer[k])
++                        break;
++                vfio_unpin_pages(vgpu_dev->vdev, gpfn_buffer[j] << PAGE_SHIFT, k - j);
++                j = k;
++            }
++            ret = count;
++        }
+ #else
+         ret = vfio_unpin_pages(vgpu_dev->dev, gpfn_buffer, count);
+ #endif
+@@ -3404,10 +3432,16 @@ NV_STATUS nv_vgpu_translate_gfn_to_pfn(NvU64 *gpfn_buffer, NvU64 *hpfn_buffer,
+     vgpu_dev_t *vgpu_dev = vgpu_ref;
+     unsigned long *thpfn_buffer = (unsigned long *) hpfn_buffer;
+     unsigned long *tgpfn_buffer = (unsigned long *) gpfn_buffer;
++    struct page **pa_page = NULL;
+     NvU32 cnt, pinned_count = 0;
+ 
+     if (!vgpu_dev)
+         return NV_ERR_INVALID_STATE;
++#if defined(NV_VFIO_PIN_PAGES_HAS_VFIO_DEVICE_ARG)
++    pa_page = kcalloc(VFIO_PIN_PAGES_MAX_ENTRIES, sizeof(struct page *), GFP_KERNEL);
++    if (unlikely(!pa_page))
++        return NV_ERR_NO_MEMORY;
++#endif
+ 
+     while (pinned_count < pfn_count)
+     {
+@@ -3417,13 +3451,27 @@ NV_STATUS nv_vgpu_translate_gfn_to_pfn(NvU64 *gpfn_buffer, NvU64 *hpfn_buffer,
+             cnt = pfn_count - pinned_count;
+ 
+ #if defined(NV_VFIO_PIN_PAGES_HAS_VFIO_DEVICE_ARG)
+-        ret = vfio_pin_pages(vgpu_dev->vdev,
++        {
++            int j, k;
++            j = 0;
++            while (j < cnt) {
++                for (k = j + 1; k < cnt; k++)
++                    if (tgpfn_buffer[pinned_count + k - 1] + 1 != tgpfn_buffer[pinned_count + k])
++                        break;
++                vfio_pin_pages(vgpu_dev->vdev, tgpfn_buffer[pinned_count + j] << PAGE_SHIFT,
++                               k - j, IOMMU_READ | IOMMU_WRITE, pa_page + j);
++                j = k;
++            }
++            for (j = 0; j < cnt; j++)
++                thpfn_buffer[pinned_count + j] = page_to_phys(pa_page[j]) >> PAGE_SHIFT;
++            ret = cnt;
++        }
+ #else
+         ret = vfio_pin_pages(vgpu_dev->dev,
+-#endif
+                              tgpfn_buffer + pinned_count,
+                              cnt, IOMMU_READ | IOMMU_WRITE,
+                              thpfn_buffer + pinned_count);
++#endif
+         if (ret <= 0)
+         {
+             NV_VGPU_DEV_LOG(VGPU_ERR, vgpu_dev,
+@@ -3484,9 +3532,15 @@ NV_STATUS nv_vgpu_translate_gfn_to_pfn(NvU64 *gpfn_buffer, NvU64 *hpfn_buffer,
+         }
+     }
+ 
++#if defined(NV_VFIO_PIN_PAGES_HAS_VFIO_DEVICE_ARG)
++    kfree(pa_page);
++#endif
+     return NV_OK;
+ 
+ pin_err:
++#if defined(NV_VFIO_PIN_PAGES_HAS_VFIO_DEVICE_ARG)
++    kfree(pa_page);
++#endif
+     while (pinned_count != 0)
+     {
+         if (pinned_count > VFIO_PIN_PAGES_MAX_ENTRIES)
+@@ -3495,7 +3549,18 @@ pin_err:
+             cnt = pinned_count;
+ 
+ #if defined(NV_VFIO_PIN_PAGES_HAS_VFIO_DEVICE_ARG)
+-        ret = vfio_unpin_pages(vgpu_dev->vdev, tgpfn_buffer, cnt);
++        {
++            int j, k;
++            j = 0;
++            while (j < cnt) {
++                for (k = j + 1; k < cnt; k++)
++                    if (tgpfn_buffer[k - 1] + 1 != tgpfn_buffer[k])
++                        break;
++                vfio_unpin_pages(vgpu_dev->vdev, tgpfn_buffer[j] << PAGE_SHIFT, k - j);
++                j = k;
++            }
++            ret = cnt;
++        }
+ #else
+         ret = vfio_unpin_pages(vgpu_dev->dev, tgpfn_buffer, cnt);
+ #endif
+diff --git a/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.h b/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.h
+index 089457a..e9520cb 100644
+--- a/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.h
++++ b/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.h
+@@ -69,6 +69,7 @@ void       nv_vgpu_vfio_close(struct vgpu_dev_s *);
+ int        nv_vgpu_vfio_mmap(struct vgpu_dev_s *, struct vm_area_struct *);
+ long       nv_vgpu_vfio_ioctl(struct vgpu_dev_s *, unsigned int,
+                                      unsigned long);
++void nv_vgpu_vfio_dma_unmap_callback(struct vgpu_dev_s *vgpu_dev, u64 iova, u64 size);
+ ssize_t    nv_vgpu_vfio_read(struct vgpu_dev_s *, char __user *, size_t,
+                                     loff_t *);
+ ssize_t    nv_vgpu_vfio_write(struct vgpu_dev_s *, const char __user *,
+@@ -466,6 +467,7 @@ static inline int nv_vfio_info_add_capability(struct vfio_info_cap *caps,
+ static inline int nv_vfio_register_notifier(vgpu_dev_t *vgpu_dev)
+ {
+     int ret = 0;
++#ifndef NV_VFIO_PIN_PAGES_HAS_VFIO_DEVICE_ARG
+ #if (NV_VFIO_NOTIFIER_ARGUMENT_COUNT == 4)
+         unsigned long events = VFIO_IOMMU_NOTIFY_DMA_UNMAP;
+ #if defined(NV_VFIO_PIN_PAGES_HAS_VFIO_DEVICE_ARG)
+@@ -477,6 +479,7 @@ static inline int nv_vfio_register_notifier(vgpu_dev_t *vgpu_dev)
+                                      &vgpu_dev->nb);
+ #else
+         ret = vfio_register_notifier(vgpu_dev->dev, &vgpu_dev->nb);
++#endif
+ #endif
+ 
+     return ret;
+@@ -485,6 +488,7 @@ static inline int nv_vfio_register_notifier(vgpu_dev_t *vgpu_dev)
+ static inline int nv_vfio_unregister_notifier(vgpu_dev_t *vgpu_dev)
+ {
+     int ret = 0;
++#ifndef NV_VFIO_PIN_PAGES_HAS_VFIO_DEVICE_ARG
+ #if (NV_VFIO_NOTIFIER_ARGUMENT_COUNT == 4)
+ #if defined(NV_VFIO_PIN_PAGES_HAS_VFIO_DEVICE_ARG)
+     ret = vfio_unregister_notifier(vgpu_dev->vdev, VFIO_IOMMU_NOTIFY, &vgpu_dev->nb);
+@@ -493,6 +497,7 @@ static inline int nv_vfio_unregister_notifier(vgpu_dev_t *vgpu_dev)
+ #endif
+ #else
+     ret = vfio_unregister_notifier(vgpu_dev->dev, &vgpu_dev->nb);
++#endif
+ #endif
+ 
+     return ret;
+diff --git a/kernel/nvidia-vgpu-vfio/vgpu-vfio-mdev.c b/kernel/nvidia-vgpu-vfio/vgpu-vfio-mdev.c
+index 05170d5..c0817ab 100644
+--- a/kernel/nvidia-vgpu-vfio/vgpu-vfio-mdev.c
++++ b/kernel/nvidia-vgpu-vfio/vgpu-vfio-mdev.c
+@@ -157,6 +157,13 @@ static long nv_vfio_mdev_unlocked_ioctl(struct vfio_device *core_vdev,
+     return nv_vgpu_vfio_ioctl(vgpu_dev, cmd, arg);
+ }
+ 
++static void nv_vfio_mdev_dma_unmap(struct vfio_device *vfio_dev, u64 iova, u64 size)
++{
++    struct vgpu_dev_s *vgpu_dev = nv_get_vgpu_from_vdev(vfio_dev);
++    nv_vgpu_vfio_dma_unmap_callback(vgpu_dev, iova, size);
++}
++
++
+ static ssize_t nv_vfio_mdev_read(struct vfio_device *core_vdev, char __user *buf,
+                   size_t count, loff_t *ppos)
+ {
+@@ -236,6 +243,9 @@ static const struct vfio_device_ops nv_vfio_mdev_dev_ops = {
+     .release        = nv_vfio_mdev_release,
+ #endif
+     .ioctl          = nv_vfio_mdev_unlocked_ioctl,
++#ifdef NV_VFIO_PIN_PAGES_HAS_VFIO_DEVICE_ARG
++    .dma_unmap      = nv_vfio_mdev_dma_unmap,
++#endif
+     .read           = nv_vfio_mdev_read,
+     .write          = nv_vfio_mdev_write,
+     .mmap           = nv_vfio_mdev_mmap,
+diff --git a/kernel/nvidia-vgpu-vfio/vgpu-vfio-pci-core.c b/kernel/nvidia-vgpu-vfio/vgpu-vfio-pci-core.c
+index 7f260ee..008870a 100644
+--- a/kernel/nvidia-vgpu-vfio/vgpu-vfio-pci-core.c
++++ b/kernel/nvidia-vgpu-vfio/vgpu-vfio-pci-core.c
+@@ -215,6 +215,12 @@ static long nv_vfio_pci_ioctl(struct vfio_device *core_vdev, unsigned int cmd,
+     return nv_vgpu_vfio_ioctl(vgpu_dev, cmd, arg);
+ }
+ 
++static void nv_vfio_pci_dma_unmap(struct vfio_device *vfio_dev, u64 iova, u64 size)
++{
++    struct vgpu_dev_s *vgpu_dev = nv_vfio_pci_get_vgpu(vfio_dev);
++    nv_vgpu_vfio_dma_unmap_callback(vgpu_dev, iova, size);
++}
++
+ static ssize_t nv_vfio_pci_read(struct vfio_device *core_vdev, char __user *buf,
+                 size_t count, loff_t *ppos)
+ {
+@@ -392,6 +398,9 @@ static const struct vfio_device_ops nv_vfio_pci_ops = {
+     .open_device    = nv_vfio_pci_open_device,
+     .close_device   = nv_vfio_pci_close_device,
+     .ioctl          = nv_vfio_pci_ioctl,
++#ifdef NV_VFIO_PIN_PAGES_HAS_VFIO_DEVICE_ARG
++    .dma_unmap      = nv_vfio_pci_dma_unmap,
++#endif
+     .read           = nv_vfio_pci_read,
+     .write          = nv_vfio_pci_write,
+     .mmap           = nv_vfio_pci_mmap,
+-- 
+2.30.2
+
