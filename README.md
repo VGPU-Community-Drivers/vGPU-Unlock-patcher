@@ -1,7 +1,12 @@
 # vGPU-Unlock-patcher
 Solution to patch vGPU_Unlock into Nvidia Driver
 
-**_Kernel Support:_** Driver only works on 5.15 LTS and earlier Kernels, for newer Kernel we need new patches!
+**_Kernel Support Update 2022-12-13::** 
+Tested to work with 6.0.11 linux kernel, it may work with kernels
+since v5.19-rc4-38-g34a255e67615 and possibly with kernels older
+than v5.18-rc6-74-g8e432bb015b6, but not with versions in between these
+two, it would need another build conditional for 5.18!
+The update was also tested on 5.10 Kernel!
 
 **_Support:_** [Join VGPU-Unlock discord for Support](https://discord.gg/8YUeQtSu)
 
