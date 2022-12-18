@@ -8,7 +8,7 @@ than v5.18-rc6-74-g8e432bb015b6, but not with versions in between these
 two, it would need another build conditional for 5.18!
 The update was also tested on 5.10 Kernel!
 
-**_Support:_** [Join VGPU-Unlock discord for Support](https://discord.gg/8YUeQtSu)
+**_Support:_** [Join VGPU-Unlock discord for Support](https://discord.com/invite/5rQsSV3Byq)
 
 ## Usage
 
