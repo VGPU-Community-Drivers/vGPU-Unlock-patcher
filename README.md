@@ -38,6 +38,7 @@ Solution to patch vGPU_Unlock into Nvidia Driver
 
 ## Changelog
 
+- added `--docker-hack` option to fix `nvidia-docker-toolkit` not being able to detect the correct libraries
 - `cudahost=1` nvidia module option of merged driver now works with all versions, enables also raytracing on host
 - multiple fixes and tuning in the default profiles for rtx 2070+
 - simplified patching focusing only on vgpu kvm blob, split the patch for merged driver extension
@@ -48,6 +49,7 @@ Solution to patch vGPU_Unlock into Nvidia Driver
 ### Other Options 
 
 `--repack` option that can be used to create unlocked/patched `.run` file (usually not necessary as you can simply start nvidia-installer from the directory).
+`--docker-hack` option to patch the driver version to make it compatible with the `nvidia-docker-toolkit` so vGPU functionality and Docker can be used simultaneously with a merged driver
 
 ### Credits
 - Thanks to the discord user @mbuchel for the experimental patches
