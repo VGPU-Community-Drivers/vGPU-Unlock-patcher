@@ -16,6 +16,7 @@ TESTSIGN=true
 SETUP_TESTSIGN=false
 REPACK=false
 SWITCH_GRID_TO_GNRL=false
+DOCKER_HACK=false
 
 if [ ! -e "${GNRL}.run" -a -e "${GRID}.run" ]; then
     SWITCH_GRID_TO_GNRL=true
@@ -91,6 +92,10 @@ do
         --repack)
             shift
             REPACK=true
+            ;;
+        --docker-hack)
+            shift
+            DOCKER_HACK=true
             ;;
         *)
             echo "Unknown option $1"
@@ -231,6 +236,11 @@ applypatch() {
     echo "applypatch ${2} ${3}"
     patch -d ${1} -p1 --no-backup-if-mismatch ${3} < "$BASEDIR/patches/${2}"
 }
+
+if [ "${VER_BLOB}" == "${VER_TARGET}" ]; then
+    echo -e "docker-hack: no need to apply docker hack since vgpu-kvm and general driver have the same version"
+    DOCKER_HACK=false
+fi
 
 $SETUP_TESTSIGN && {
     which makecert &>/dev/null || die "install makecert (mono-devel) (https://github.com/mono/mono/tree/main/mcs/tools/security)"
@@ -426,6 +436,60 @@ if $DO_VGPU; then
     vcfgclone ${TARGET}/vgpuConfig.xml 0x13F2 0x0 0x13C0 0x0000		# GTX 980 -> Tesla M60
     vcfgclone ${TARGET}/vgpuConfig.xml 0x13BD 0x1160 0x139A 0x0000	# GTX 950M -> Tesla M10
     vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1f95 0x0000  # GTX 1650 Ti Mobile 4GB
+    vcfgclone ${TARGET}/vgpuConfig.xml 0x1B38 0x0 0x1D01 0x0000		# GTX 1030 -> Tesla P40
+fi
+
+if $DO_MRGD && $DOCKER_HACK; then
+    echo -e "\ndocker-hack: fixing merge driver issue for nvidia-container-toolkit by replacing ${VER_BLOB} with ${VER_TARGET} in all files..."
+    set -eu
+
+    _str2hex() {
+        local str=${1:-""}
+        local chr
+        local -i i
+        for i in `seq 0 $((${#str}-1))`; do
+            chr=${str:i:1}
+            printf  '\\x%x' "'${chr}"
+        done
+    }
+    export -f _str2hex
+    VER_BLOB_HEX=$(_str2hex "$VER_BLOB")
+    VER_TARGET_HEX=$(_str2hex "$VER_TARGET")
+
+    _rename() {
+        VER_BLOB="$1"
+        VER_TARGET="$2"
+        SOURCE="$3"
+        TARGET=$(echo "$SOURCE" | sed "s@$VER_BLOB@$VER_TARGET@")
+        mv -vf "$SOURCE" "$TARGET"
+    }
+    export -f _rename
+
+    # gather files to patch
+    textFiles=$(grep -rl --binary-files=without-match "${VER_BLOB}" "${TARGET}")
+    # filter textFiles from binary search
+    for f in "${textFiles[@]}"; do
+        opts+=( --exclude="$f" )
+    done
+    binaryFiles=( $(grep -rl --binary-files=binary "${VER_BLOB}" "${opts[@]}" "${TARGET}") )
+
+    for txt in "${textFiles[@]}"; do
+        echo "docker-hack: patching text file ${txt}"
+        sed -i "s/${VER_BLOB}/${VER_TARGET}/g" "${txt}"
+    done
+
+    for bin in "${binaryFiles[@]}"; do
+        echo "docker-hack: patching binary file ${bin}"
+        sed -e "s/${VER_BLOB_HEX}/${VER_TARGET_HEX}/g" -i "${bin}"
+    done
+
+    echo "docker-hack: renaming files with ${VER_BLOB} to ${VER_TARGET}..."
+    find "${TARGET}" -type f -name "*${VER_BLOB}*" -exec bash -c "_rename \"${VER_BLOB}\" \"${VER_TARGET}\" \"{}\"" \;
+
+    echo "docker-hack: to enable cuda in docker setting cudahost=1 is mandatory!"
+    echo "docker-hack: to do that execute 'echo \"options nvidia cudahost=1\" | sudo tee /etc/modprobe.d/nvidia-cuda.conf' on your host to enable cuda"
+
+    echo -e "done\n"
 fi
 
 if $REPACK; then
