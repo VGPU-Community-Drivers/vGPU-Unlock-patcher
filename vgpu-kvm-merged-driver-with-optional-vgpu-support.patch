@@ -1,0 +1,269 @@
+From ecea0f566ddf2baec7cca3063121f07dec55c70a Mon Sep 17 00:00:00 2001
+From: snowman <snowman@localhost.localdomain>
+Date: Wed, 13 Jul 2022 20:15:31 +0200
+Subject: [PATCH] vgpu kvm merged driver with optional vgpu support
+
+add ability to enable or disable vgpu kvm support in merged driver
+via nvidia module parameter
+---
+ patch.sh                                    |   7 +
+ patches/vgpu-kvm-merged-optional-vgpu.patch | 215 ++++++++++++++++++++
+ 2 files changed, 222 insertions(+)
+ create mode 100644 patches/vgpu-kvm-merged-optional-vgpu.patch
+
+diff --git a/patch.sh b/patch.sh
+index 43065ad..b7f3b13 100755
+--- a/patch.sh
++++ b/patch.sh
+@@ -7,6 +7,7 @@ GRID="NVIDIA-Linux-x86_64-510.73.08-grid"
+ SPOOF=true
+ CUDAH=true
+ MIGRATION=true
++OPTVGPU=true
+ REPACK=false
+ 
+ VER_VGPU=`echo ${VGPU} | awk -F- '{print $4}'`
+@@ -55,6 +56,10 @@ do
+         shift
+         MIGRATION=false
+     fi
++    if [ "$1" = "--no-opt-vgpu" ]; then
++        shift
++        OPTVGPU=false
++    fi
+     if [ "$1" = "--repack" ]; then
+         shift
+         REPACK=true
+@@ -234,6 +239,8 @@ else
+     echo "kprobe hooks NOT applied"
+ fi
+ 
++$DO_MRGD && $OPTVGPU && applypatch ${TARGET} vgpu-kvm-merged-optional-vgpu.patch
++
+ blobpatch ${TARGET}/kernel/nvidia/nv-kernel.o_binary patches/blob-${VER_BLOB}.diff || exit 1
+ 
+ if $DO_VGPU; then
+diff --git a/patches/vgpu-kvm-merged-optional-vgpu.patch b/patches/vgpu-kvm-merged-optional-vgpu.patch
+new file mode 100644
+index 0000000..c3b1771
+--- /dev/null
++++ b/patches/vgpu-kvm-merged-optional-vgpu.patch
+@@ -0,0 +1,215 @@
++From: snowman <snowman@localhost.localdomain>
++Subject: [PATCH] vgpu kvm merged optional vgpu
++
++this is an attempt to optionaly disable vgpu-kvm support
++in merged driver via nvidia module parameter
++
++allows to define secondary boot with vgpu-kvm disabled in order
++to boot with nvidia merged driver switched to normal desktop mode
++without replacing any driver files, just with use of nvidia.vgpukvm=0
++in kernel boot parameters
++
++also provided kmalimit nvidia module parameter to test override
++of KMALLOC_LIMIT in os_alloc_mem()
++---
++ kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.c | 16 ++++++++++++++++
++ kernel/nvidia/nv-frontend.c                | 13 +++++++++++++
++ kernel/nvidia/nv-mmap.c                    |  3 ++-
++ kernel/nvidia/nv-pci.c                     | 14 ++++++++++++--
++ kernel/nvidia/nv-vgpu-vfio-interface.c     |  4 ++++
++ kernel/nvidia/os-interface.c               | 13 +++++++++++--
++ 6 files changed, 58 insertions(+), 5 deletions(-)
++
++diff --git a/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.c b/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.c
++index acb8fb2..5fc08a0 100644
++--- a/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.c
+++++ b/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.c
++@@ -4386,6 +4386,10 @@ static NV_STATUS nv_vgpu_probe(struct pci_dev *dev, NvU32 num_vgpu_types, NvU32
++     char *vgpu_type_name = NULL;
++     phys_dev_t *phys_dev = NULL;
++ 
+++    extern int nv_vgpu_kvm_enable;
+++    if (!nv_vgpu_kvm_enable)
+++        return status;
+++
++     down(&phys_devices.phys_dev_list_lock);
++     if (((status = get_phys_dev(dev, &phys_dev)) != NV_OK) || (phys_dev != NULL))
++     {
++@@ -4494,6 +4498,10 @@ static void nv_vgpu_remove(struct pci_dev *dev)
++ #if defined(NV_VGPU_KVM_BUILD)
++     phys_dev_t *phys_dev, *tmp;
++ 
+++    extern int nv_vgpu_kvm_enable;
+++    if (!nv_vgpu_kvm_enable)
+++        return;
+++
++     if(list_empty(&phys_devices.phys_dev_list))
++         return;
++ 
++@@ -4531,6 +4539,10 @@ static void nv_vgpu_remove(struct pci_dev *dev)
++ static int __init nv_vgpu_vfio_init(void)
++ {
++ #if defined(NV_VGPU_KVM_BUILD)
+++    extern int nv_vgpu_kvm_enable;
+++    if (!nv_vgpu_kvm_enable)
+++        return 0;
+++
++     rm_vgpu_vfio_ops.version_string = NV_VERSION_STRING;
++ 
++     get_ops = NULL;
++@@ -4586,6 +4598,10 @@ static void __exit nv_vgpu_vfio_exit(void)
++ #if defined(NV_VGPU_KVM_BUILD)
++     phys_dev_t *phys_dev, *tmpdev;
++ 
+++    extern int nv_vgpu_kvm_enable;
+++    if (!nv_vgpu_kvm_enable)
+++        return;
+++
++     list_for_each_entry_safe(phys_dev, tmpdev, &phys_devices.phys_dev_list, next)
++         mdev_unregister_device(&phys_dev->dev->dev);
++ 
++diff --git a/kernel/nvidia/nv-frontend.c b/kernel/nvidia/nv-frontend.c
++index 17a549d..5527ad6 100644
++--- a/kernel/nvidia/nv-frontend.c
+++++ b/kernel/nvidia/nv-frontend.c
++@@ -369,6 +369,19 @@ static int __init nvidia_frontend_init_module(void)
++     memset(nv_minor_num_table, 0, sizeof(nv_minor_num_table));
++     NV_INIT_MUTEX(&nv_module_table_lock);
++ 
+++#if defined(NV_VGPU_KVM_BUILD)
+++    extern unsigned nv_vgpukvm_kmalloc_limit; 
+++    extern int nv_vgpu_kvm_enable;
+++    if (nv_vgpukvm_kmalloc_limit == 0) {
+++        if (nv_vgpu_kvm_enable)
+++            nv_vgpukvm_kmalloc_limit = 8192;
+++        else
+++            nv_vgpukvm_kmalloc_limit = 131072;
+++    }
+++    printk(KERN_INFO "nvidia: merged driver vgpukvm=%d kmalimit=%u\n",
+++        nv_vgpu_kvm_enable, nv_vgpukvm_kmalloc_limit);
+++#endif
+++
++     status = nvidia_init_module();
++     if (status < 0)
++     {
++diff --git a/kernel/nvidia/nv-mmap.c b/kernel/nvidia/nv-mmap.c
++index 5c0f764..7780f8b 100644
++--- a/kernel/nvidia/nv-mmap.c
+++++ b/kernel/nvidia/nv-mmap.c
++@@ -401,7 +401,8 @@ int static nvidia_mmap_sysmem(
++ #endif
++ 
++ #if defined(NV_VGPU_KVM_BUILD)
++-        if (at->flags.guest)
+++        extern int nv_vgpu_kvm_enable;
+++        if (nv_vgpu_kvm_enable && at->flags.guest)
++         {
++             ret = nv_remap_page_range(vma, start, at->page_table[j]->phys_addr,
++                                       PAGE_SIZE, vma->vm_page_prot);
++diff --git a/kernel/nvidia/nv-pci.c b/kernel/nvidia/nv-pci.c
++index 65a1c14..7e739ee 100644
++--- a/kernel/nvidia/nv-pci.c
+++++ b/kernel/nvidia/nv-pci.c
++@@ -249,6 +249,8 @@ nv_pci_probe
++     if (pci_dev->is_virtfn)
++     {
++ #if defined(NV_VGPU_KVM_BUILD)
+++      extern int nv_vgpu_kvm_enable;
+++      if (nv_vgpu_kvm_enable) {
++         nvl = pci_get_drvdata(pci_dev->physfn);
++         if (!nvl)
++         {
++@@ -280,13 +282,15 @@ nv_pci_probe
++ 
++         nv_kmem_cache_free_stack(sp);
++         return 0;
++-#else
+++      } else
+++#endif /* NV_VGPU_KVM_BUILD */
+++      {
++         nv_printf(NV_DBG_ERRORS, "NVRM: Ignoring probe for VF %04x:%02x:%02x.%x ",
++                   NV_PCI_DOMAIN_NUMBER(pci_dev), NV_PCI_BUS_NUMBER(pci_dev),
++                   NV_PCI_SLOT_NUMBER(pci_dev), PCI_FUNC(pci_dev->devfn));
++ 
++         goto failed;
++-#endif /* NV_VGPU_KVM_BUILD */
+++      } /* NV_VGPU_KVM_BUILD */
++     }
++ #endif /* NV_PCI_SRIOV_SUPPORT */
++ 
++@@ -584,6 +588,8 @@ next_bar:
++     nv_parse_per_device_option_string(sp);
++ 
++ #if defined(NV_VGPU_KVM_BUILD)
+++    extern int nv_vgpu_kvm_enable;
+++    if (nv_vgpu_kvm_enable)
++     if (nvidia_vgpu_vfio_probe(nvl->pci_dev) != NV_OK)
++     {
++         NV_DEV_PRINTF(NV_DBG_ERRORS, nv, "Failed to register device to vGPU VFIO module");
++@@ -647,6 +653,8 @@ nv_pci_remove(struct pci_dev *pci_dev)
++     {
++ #if defined(NV_VGPU_KVM_BUILD)
++         /* Arg 2 == NV_TRUE means that the PCI device should be removed */
+++      extern int nv_vgpu_kvm_enable;
+++      if (nv_vgpu_kvm_enable)
++         nvidia_vgpu_vfio_remove(pci_dev, NV_TRUE);
++ #endif /* NV_VGPU_KVM_BUILD */
++         return;
++@@ -736,6 +744,8 @@ nv_pci_remove(struct pci_dev *pci_dev)
++ 
++ #if defined(NV_VGPU_KVM_BUILD)
++     /* Arg 2 == NV_TRUE means that the PCI device should be removed */
+++    extern int nv_vgpu_kvm_enable;
+++    if (nv_vgpu_kvm_enable)
++     nvidia_vgpu_vfio_remove(pci_dev, NV_TRUE);
++ #endif
++ 
++diff --git a/kernel/nvidia/nv-vgpu-vfio-interface.c b/kernel/nvidia/nv-vgpu-vfio-interface.c
++index 375c72b..59a1ba6 100644
++--- a/kernel/nvidia/nv-vgpu-vfio-interface.c
+++++ b/kernel/nvidia/nv-vgpu-vfio-interface.c
++@@ -513,6 +513,10 @@ NV_STATUS NV_API_CALL os_call_vgpu_vfio(void *pvgpu_vfio_info, NvU32 cmd)
++     nv_linux_state_t  *nvl;
++     struct pci_dev    *pci_dev = NULL;
++ 
+++    extern int nv_vgpu_kvm_enable;
+++    if (!nv_vgpu_kvm_enable)
+++        return NV_ERR_NOT_SUPPORTED;
+++
++     switch (cmd)
++     {
++         case CMD_VGPU_VFIO_WAKE_WAIT_QUEUE:
++diff --git a/kernel/nvidia/os-interface.c b/kernel/nvidia/os-interface.c
++index c204f69..b1087d5 100644
++--- a/kernel/nvidia/os-interface.c
+++++ b/kernel/nvidia/os-interface.c
++@@ -466,7 +466,15 @@ NvS32 NV_API_CALL os_mem_cmp(
++  * particularly if hugetlbfs hugepages are being used. Hence, 8K applies
++  * here too.
++  */
++-#define KMALLOC_LIMIT 8192
+++
+++unsigned nv_vgpukvm_kmalloc_limit; // default for vgpu-kvm: 8192
+++module_param_named(kmalimit, nv_vgpukvm_kmalloc_limit, uint, 0600);
+++
+++int nv_vgpu_kvm_enable = 1;
+++module_param_named(vgpukvm, nv_vgpu_kvm_enable, int, 0400);
+++EXPORT_SYMBOL(nv_vgpu_kvm_enable);
+++
+++#define KMALLOC_LIMIT nv_vgpukvm_kmalloc_limit
++ #else
++ #define KMALLOC_LIMIT 131072
++ #endif
++@@ -1236,7 +1244,8 @@ NvBool NV_API_CALL os_is_xen_dom0(void)
++ NvBool NV_API_CALL os_is_vgx_hyper(void)
++ {
++ #if defined(NV_VGX_HYPER)
++-    return NV_TRUE;
+++    extern int nv_vgpu_kvm_enable;
+++    return nv_vgpu_kvm_enable ? NV_TRUE : NV_FALSE;
++ #else
++     return NV_FALSE;
++ #endif
++-- 
++2.30.2
++
+-- 
+2.30.2
+
