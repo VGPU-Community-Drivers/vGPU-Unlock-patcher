@@ -103,7 +103,7 @@ void init_probes(void)
 {
 #ifdef SPOOF_ID
     spoof.post_handler = spoof_id;
-    spoof.symbol_name = "_nv023641rm";
+    spoof.symbol_name = "_nv023661rm";
     spoof.offset = 0x6e;
     if (register_kprobe(&spoof) == 0)
         printk(KERN_INFO "nvidia: spoof devid kprobe hook registered\n");
@@ -116,7 +116,7 @@ void init_probes(void)
 
 #ifdef TEST_CUDA_HOST
     cuda_p1.post_handler = cuda_h1;
-    cuda_p1.symbol_name = "_nv032250rm";
+    cuda_p1.symbol_name = "_nv032315rm";
     cuda_p1.offset = 0xa0;
     if (register_kprobe(&cuda_p1) == 0)
         printk(KERN_INFO "nvidia: cuda_p1 kprobe hook registered\n");
@@ -138,9 +138,9 @@ void init_probes(void)
     if (klogtrace_enable >= 0) {
         klogtrace.pre_handler = klogtrace_hook;
 #ifdef NV_VGPU_KVM_BUILD
-        klogtrace.symbol_name = "_nv034882rm";      // vgpu-kvm blob
+        klogtrace.symbol_name = "_nv034972rm";      // vgpu-kvm blob
 #else
-        klogtrace.symbol_name = "_nv034882rm";      // consumer or grid blob
+        klogtrace.symbol_name = "_nv034972rm";      // consumer or grid blob
 #endif
         klogtrace.offset = 0;
         if (register_kprobe(&klogtrace) == 0)
