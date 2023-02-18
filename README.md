@@ -15,7 +15,7 @@ The update was also tested on 5.10 Kernel!
 1. Pre-download original `.run` files:
    | Name | Version | Links |
    | ----------- | ----------- | ----------- |
-   | NVIDIA-GRID-Linux-KVM-525.60.12-525.60.13-527.41 | Grid v15.0 | [Nvidia Download](https://enterprise-support.nvidia.com/s/login/?startURL=%2Fs%2F%3Ft%3D1657093205198), [Google Drive](https://drive.google.com/drive/folders/1Mwk0diSegzHx-7BeJdujPa1Vgyw5fd3s), [GitHub](https://github.com/VGPU-Community-Drivers/NV-VGPU-Driver/releases2) |
+   | NVIDIA-GRID-Linux-KVM-525.85.07-525.85.05-528.24 | Grid v15.1 | [Nvidia Download](https://enterprise-support.nvidia.com/s/login/?startURL=%2Fs%2F%3Ft%3D1657093205198), [Google Drive](https://drive.google.com/drive/folders/1Mwk0diSegzHx-7BeJdujPa1Vgyw5fd3s) |
 
 2. Setup Spoofing - edit `patch.sh` file and search
    ```
