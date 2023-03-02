@@ -124,7 +124,7 @@ void init_probes(void)
         printk(KERN_INFO "nvidia: cuda_p1 kprobe hook NOT registered\n");
 
     cuda_p2.pre_handler = cuda_h2;
-    cuda_p2.symbol_name = "_nv034209rm";
+    cuda_p2.symbol_name = "_nv034296rm";
     cuda_p2.offset = 0xdb;
     if (register_kprobe(&cuda_p2) == 0)
         printk(KERN_INFO "nvidia: cuda_p2 kprobe hook registered\n");
