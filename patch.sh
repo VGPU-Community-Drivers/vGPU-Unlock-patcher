@@ -6,8 +6,8 @@ GNRL="NVIDIA-Linux-x86_64-525.85.05"
 VGPU="NVIDIA-Linux-x86_64-525.85.07-vgpu-kvm"
 GRID="NVIDIA-Linux-x86_64-525.85.05-grid"
 #WSYS="NVIDIA-Windows-x86_64-512.15"
-WSYS="NVIDIA-Windows-x86_64-527.41"
-#WSYS="NVIDIA-Windows-x86_64-528.24"
+#WSYS="NVIDIA-Windows-x86_64-527.41"
+WSYS="NVIDIA-Windows-x86_64-528.24"
 
 SPOOF=true
 CUDAH=true
@@ -228,6 +228,16 @@ applypatch() {
     patch -d ${1} -p1 --no-backup-if-mismatch ${3} < "$BASEDIR/patches/${2}"
 }
 
+libspatch() {
+    sed -e 's/\x89\x06\x01\x20/\x40\x00\x01\x20/g' \
+        -e 's/\xb8\x89\x06\x01\x00/\xb8\x40\x00\x01\x00/g' \
+        -e 's/\x21\x40\xa2\x01\x41/\x21\x00\x10\x00\x41/g' \
+        -e 's/\xa1\x40\xa2\x01\x41/\xa1\x00\x10\x00\x41/g' \
+        -e 's/\xa2\x01\xc0\x18\x00\x03\x8c\x71/\x10\x00\xc0\x18\x00\x03\x8c\x31/g' \
+        -e 's/\xa2\x01\xc0\x18\x00\x03\x0c\x70/\x10\x00\xc0\x18\x00\x03\x0c\x30/g' \
+        -i "$@"
+}
+
 $SETUP_TESTSIGN && {
     which makecert &>/dev/null || die "install makecert (mono-devel) (https://github.com/mono/mono/tree/main/mcs/tools/security)"
     echo "creating test code signing certificate"
@@ -265,11 +275,14 @@ if $DO_WSYS && [ ! -e "${WSYS}/nvlddmkm.sys" ]; then
     SYS_SRC=( "Display.Driver/nvlddmkm.sy_" )
     if $DO_LIBS; then
         SYS_SRC+=(
+            "Display.Driver/nvd3dum.dl_"
+            "Display.Driver/nvd3dumx.dl_"
+            "Display.Driver/nvldumd.dl_"
+            "Display.Driver/nvldumdx.dl_"
             "Display.Driver/nvoglv32.dl_"
             "Display.Driver/nvoglv64.dl_"
-#            "Display.Driver/nvopencl64.dl_"        # false positive match
-#            "Display.Driver/nvvm64_40_0.dll"       # false positive match
-#            "GFExperience/libcef.dll"              # false positive match
+            "Display.Driver/nvwgf2um.dl_"
+            "Display.Driver/nvwgf2umx.dl_"
         )
     fi
     echo "extracting the driver installer, please wait..."
@@ -278,10 +291,11 @@ if $DO_WSYS && [ ! -e "${WSYS}/nvlddmkm.sys" ]; then
     do
         if [ "${i%_}" != "${i}" ]; then
             t=`basename "$i" | sed -e 's/sy_$/sys/' -e 's/dl_/dll/'`
-            echo "`basename $i` -> $t"
+            echo "$i -> $t"
             msexpand < ${WSYS}/$i > ${WSYS}/$t
         else
-            echo "$t -> $t"
+            t=`basename "$i"`
+            echo "$i -> $t"
             mv ${WSYS}/$i ${WSYS}
         fi
     done
@@ -325,6 +339,10 @@ $CP ${SOURCE} ${TARGET}
 
 if $DO_WSYS; then
     which osslsigncode &>/dev/null || die "install osslsigncode (https://github.com/mtrojnar/osslsigncode)"
+    if [ ! -x "$BASEDIR"/nsigpatch ]; then
+        which gcc &>/dev/null || die "gcc is needed to compile nsigpatch tool"
+        gcc -fshort-wchar "$BASEDIR"/nsigpatch.c -o "$BASEDIR"/nsigpatch || die "build of nsigpatch tool failed"
+    fi
     $TESTSIGN && { [ -e wtestsign/wsys-test-cert.pfx ] || die "testsign certificate missing, try with --create-cert option"; }
 
     rm -f ${SOURCE}/*-unsigned
@@ -336,16 +354,21 @@ if $DO_WSYS; then
         $CP ${i}-unsigned ${TARGET}/${t}-unsigned
     done
 
-    echo "about to patch ${TARGET}/nvlddmkm.sys-unsigned"
-    if [ -e "$BASEDIR/patches/wsys-${VER_TARGET}-klogtrace.diff" ]; then
-        $KLOGT && { blobpatch ${TARGET}/nvlddmkm.sys-unsigned "$BASEDIR/patches/wsys-${VER_TARGET}-klogtrace.diff" || exit 1; }
+    if [ -e "$BASEDIR/patches/wsys-${VER_TARGET}.diff" ]; then
+        echo "about to patch ${TARGET}/nvlddmkm.sys-unsigned"
+        if [ -e "$BASEDIR/patches/wsys-${VER_TARGET}-klogtrace.diff" ]; then
+            $KLOGT && { blobpatch ${TARGET}/nvlddmkm.sys-unsigned "$BASEDIR/patches/wsys-${VER_TARGET}-klogtrace.diff" || exit 1; }
+        fi
+        blobpatch ${TARGET}/nvlddmkm.sys-unsigned "$BASEDIR/patches/wsys-${VER_TARGET}.diff" || exit 1
     fi
-    blobpatch ${TARGET}/nvlddmkm.sys-unsigned "$BASEDIR/patches/wsys-${VER_TARGET}.diff" || exit 1
 
     for i in ${TARGET}/*-unsigned
     do
         t=${i%-unsigned}
-        [ "${t%.sys}" = "${t}" ] && sed -e 's/\x89\x06\x01\x20/\x40\x00\x01\x20/g' -e 's/\xb8\x89\x06\x01\x00/\xb8\x40\x00\x01\x00/g' -i ${i}
+        [ "${t%.sys}" = "${t}" ] && {
+            libspatch ${i}
+            "$BASEDIR"/nsigpatch ${i} || exit 1
+        }
         rm -f ${t}
 
         if $TESTSIGN; then
@@ -403,7 +426,7 @@ $DO_MRGD && { blobpatch ${TARGET}/kernel/nvidia/nv-kernel.o_binary "$BASEDIR/pat
 $DO_LIBS && {
     for i in nvidia_drv.so {.,32}/libnvidia-{,e}glcore.so.${VER_TARGET}
     do
-        sed -e 's/\x89\x06\x01\x20/\x40\x00\x01\x20/g' -i ${TARGET}/${i}
+        libspatch ${TARGET}/${i}
     done
 }
 
