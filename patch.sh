@@ -310,13 +310,7 @@ if $DO_MRGD; then
     $CP ${VGPU}/. ${SOURCE}
     rm ${SOURCE}/libnvidia-ml.so.${VER_VGPU}
     $CP ${GRID}/. ${SOURCE}
-    if [ "${GRID/${TARGET_VER}}" = "${GRID}" ]; then
-        USE_KVM_BLOB="kernel/nvidia/nv-kernel.o_binary"
-        VER_BLOB=`echo ${VGPU} | awk -F- '{print $4}'`
-    else
-        USE_KVM_BLOB=""
-    fi
-    for i in LICENSE kernel/nvidia/nvidia-sources.Kbuild init-scripts/{post-install,pre-uninstall} nvidia-bug-report.sh ${USE_KVM_BLOB}
+    for i in LICENSE kernel/nvidia/nvidia-sources.Kbuild init-scripts/{post-install,pre-uninstall} nvidia-bug-report.sh kernel/nvidia/nv-kernel.o_binary
     do
         $CP ${VGPU}/$i ${SOURCE}/$i
     done
