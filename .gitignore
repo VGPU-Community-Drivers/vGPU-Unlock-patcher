@@ -1,4 +1,5 @@
 NVIDIA-Linux-x86_64-*
 NVIDIA-Windows-x86_64-*
 *[-_]win*[-_]64bit*.exe
+nsigpatch
 wtestsign/
