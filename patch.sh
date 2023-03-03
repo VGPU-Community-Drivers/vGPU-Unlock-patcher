@@ -220,12 +220,14 @@ blobpatch() {
         fi
     done < ${2}
     [ $status -ne 0 ] && echo "blobpatch of ${1} failed, status=$status"
+    echo
     return $status
 }
 
 applypatch() {
     echo "applypatch ${2} ${3}"
     patch -d ${1} -p1 --no-backup-if-mismatch ${3} < "$BASEDIR/patches/${2}"
+    echo
 }
 
 libspatch() {
@@ -373,6 +375,7 @@ if $DO_WSYS; then
             echo "testsigning skipped: ${t}"
             $CP ${i} ${t}
         fi
+        echo
     done
 
     exit 0
@@ -415,7 +418,10 @@ fi
 $DO_MRGD && $OPTVGPU && applypatch ${TARGET} vgpu-kvm-merged-optional-vgpu.patch
 
 blobpatch ${TARGET}/kernel/nvidia/nv-kernel.o_binary "$BASEDIR/patches/blob-${VER_BLOB}.diff" || exit 1
-$DO_MRGD && { blobpatch ${TARGET}/kernel/nvidia/nv-kernel.o_binary "$BASEDIR/patches/blob-${VER_BLOB}-merged.diff" || exit 1; }
+$DO_MRGD && {
+    blobpatch ${TARGET}/kernel/nvidia/nv-kernel.o_binary "$BASEDIR/patches/blob-${VER_BLOB}-merged.diff" || exit 1
+    blobpatch ${TARGET}/libnvidia-ml.so.${VER_TARGET} "$BASEDIR/patches/libnvidia-ml.so.${VER_TARGET%.*}.diff" || exit 1
+}
 
 $DO_LIBS && {
     for i in nvidia_drv.so {.,32}/libnvidia-{,e}glcore.so.${VER_TARGET}
