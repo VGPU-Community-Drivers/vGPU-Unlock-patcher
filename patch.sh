@@ -51,6 +51,7 @@ DO_MRGD=false
 DO_WSYS=false
 DO_UNLK=true
 DO_LIBS=true
+DO_LK6P=false
 
 while [ $# -gt 0 -a "${1:0:2}" = "--" ]
 do
@@ -70,6 +71,10 @@ do
         --create-cert)
             shift
             SETUP_TESTSIGN=true
+            ;;
+        --lk6-patches)
+            shift
+            DO_LK6P=true
             ;;
         --repack)
             shift
@@ -453,6 +458,10 @@ $DO_LIBS && {
 }
 
 if $DO_VGPU; then
+    if $DO_LK6P; then
+        applypatch ${TARGET} vgpu-kvm-kernel-6.1-compat.patch
+        applypatch ${TARGET} vgpu-kvm-kernel-6.2-compat.patch
+    fi
     applypatch ${TARGET} vcfg-testing.patch
     vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1E84 0x0000	# RTX 2070 super 8GB
     vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1E81 0x0000	# RTX 2080 super 8GB
@@ -467,6 +476,14 @@ if $DO_VGPU; then
     vcfgclone ${TARGET}/vgpuConfig.xml 0x13BD 0x1160 0x139A 0x0000	# GTX 950M -> Tesla M10
     vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1f95 0x0000  # GTX 1650 Ti Mobile 4GB
     vcfgclone ${TARGET}/vgpuConfig.xml 0x1B38 0x0 0x1D01 0x0000     # GTX 1030 -> Tesla P40
+    echo
+fi
+
+if $DO_LK6P; then
+    applypatch ${TARGET} vgpu-kvm-kernel-6.3-compat-common.patch
+    if [ -d ${TARGET}/kernel/nvidia-drm -a -d ${TARGET}/kernel/nvidia-uvm ]; then
+        applypatch ${TARGET} vgpu-kvm-kernel-6.3-compat-drmuvm.patch
+    fi
 fi
 
 if $REPACK; then

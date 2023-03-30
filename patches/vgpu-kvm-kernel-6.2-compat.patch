@@ -1,0 +1,202 @@
+From: snowman <snowman@localhost.localdomain>
+Subject: [PATCH] vgpu kvm kernel 6.2 compat
+
+nvidia vgpu kvm 525.85 fixes for compatibility with linux 6.2 kernel
+
+tested with 6.2.8 version
+---
+ kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.h   |  9 +++-
+ kernel/nvidia-vgpu-vfio/vgpu-devices.c       |  2 +-
+ kernel/nvidia-vgpu-vfio/vgpu-vfio-mdev.c     |  2 +
+ kernel/nvidia-vgpu-vfio/vgpu-vfio-pci-core.c | 51 +++++++++++++-------
+ 4 files changed, 45 insertions(+), 19 deletions(-)
+
+diff --git a/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.h b/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.h
+index ad69cf3..d6d15b2 100644
+--- a/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.h
++++ b/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.h
+@@ -409,13 +409,15 @@ typedef struct vgpu_dev_s
+     struct device *dev;
+ } vgpu_dev_t;
+ 
++struct nv_vpcdev;
++
+ typedef struct phys_dev_s
+ {
+     struct list_head         next;
+     struct pci_dev          *dev;
+     NvBool                   is_virtfn;
+ #if defined(NV_USE_VFIO_PCI_CORE)
+-    struct vfio_pci_core_device vpcdev;
++    struct nv_vpcdev        *nvpcdev;
+     vgpu_dev_t              *vgpu_dev;
+ #endif
+     struct mdev_type       **mdev_types;
+@@ -433,6 +435,11 @@ typedef struct phys_dev_s
+     struct mdev_parent parent;
+ } phys_dev_t;
+ 
++struct nv_vpcdev {
++    struct vfio_pci_core_device vpcdev;
++    phys_dev_t *nv_phdev;
++};
++
+ #define INVALID_VGPU_INSTANCE_ID 0xFFFFFFFF
+ 
+ /* list to maintain all vGPU devices */
+diff --git a/kernel/nvidia-vgpu-vfio/vgpu-devices.c b/kernel/nvidia-vgpu-vfio/vgpu-devices.c
+index 20036fd..d58f3d0 100644
+--- a/kernel/nvidia-vgpu-vfio/vgpu-devices.c
++++ b/kernel/nvidia-vgpu-vfio/vgpu-devices.c
+@@ -880,7 +880,7 @@ NV_STATUS nv_vfio_vgpu_vf_reg_access_hw(void *cmd_params, vgpu_dev_t *vgpu_dev)
+     struct pci_dev *pdev = to_pci_dev(nv_get_device(vgpu_dev));
+     NV_STATUS cfg_access_status = NV_OK;
+ 
+-    if (!pdev || !pParams->data)
++    if (!pdev || !pParams)
+         return NV_ERR_INVALID_ARGUMENT;
+ 
+     if (vgpu_dev->is_driver_vm)
+diff --git a/kernel/nvidia-vgpu-vfio/vgpu-vfio-mdev.c b/kernel/nvidia-vgpu-vfio/vgpu-vfio-mdev.c
+index ed5f6d8..bb6b627 100644
+--- a/kernel/nvidia-vgpu-vfio/vgpu-vfio-mdev.c
++++ b/kernel/nvidia-vgpu-vfio/vgpu-vfio-mdev.c
+@@ -234,7 +234,9 @@ static void nv_vfio_mdev_release_dev(struct vfio_device *core_vdev)
+     int ret = nv_vgpu_vfio_mdev_destroy(vgpu_dev);
+     if (ret)
+         NV_VGPU_DEV_LOG(VGPU_ERR, vgpu_dev, "Failed to destroy vGPU device, ret: %d\n", ret);
++#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 2, 0)
+     vfio_free_device(core_vdev);
++#endif
+ }
+ 
+ #if defined(NV_VFIO_MIGRATION_OPS_PRESENT)
+diff --git a/kernel/nvidia-vgpu-vfio/vgpu-vfio-pci-core.c b/kernel/nvidia-vgpu-vfio/vgpu-vfio-pci-core.c
+index 247d0a2..8640e88 100644
+--- a/kernel/nvidia-vgpu-vfio/vgpu-vfio-pci-core.c
++++ b/kernel/nvidia-vgpu-vfio/vgpu-vfio-pci-core.c
+@@ -49,7 +49,7 @@ static vgpu_dev_t *nv_vfio_pci_get_vgpu(struct vfio_device *core_vdev)
+     vgpu_dev_t *vgpu_dev = NULL;
+ 
+     vpcdev   = container_of(core_vdev, struct vfio_pci_core_device, vdev);
+-    phys_dev = container_of(vpcdev, phys_dev_t, vpcdev);
++    phys_dev = container_of(vpcdev, struct nv_vpcdev, vpcdev)->nv_phdev;
+ 
+     down(&phys_dev->ops_lock);
+     vgpu_dev = phys_dev->vgpu_dev;
+@@ -78,7 +78,7 @@ static void nv_set_phys_dev_vgpu_dev(struct device *dev, vgpu_dev_t *vgpu_dev)
+         return;
+     }
+ 
+-    phys_dev = container_of(vpcdev, phys_dev_t, vpcdev);
++    phys_dev = container_of(vpcdev, struct nv_vpcdev, vpcdev)->nv_phdev;
+ 
+     down(&phys_dev->ops_lock);
+     phys_dev->vgpu_dev = vgpu_dev;
+@@ -98,7 +98,7 @@ static vgpu_dev_t *nv_get_phys_dev_vgpu_dev(struct device *dev)
+         return NULL;
+     }
+ 
+-    phys_dev = container_of(vpcdev, phys_dev_t, vpcdev);
++    phys_dev = container_of(vpcdev, struct nv_vpcdev, vpcdev)->nv_phdev;
+ 
+     down(&phys_dev->ops_lock);
+     vgpu_dev = phys_dev->vgpu_dev;
+@@ -392,11 +392,27 @@ const struct attribute_group *vf_dev_groups[] = {
+ 
+ static int nv_vfio_pci_init_dev(struct vfio_device *core_vdev)
+ {
++    // vfio_alloc_device() stored &phys_dev->dev->dev pointer into vdev.dev
++    struct pci_dev *pdev = container_of(core_vdev->dev, struct pci_dev, dev);
++    struct nv_vpcdev *nv_vpcdev = container_of(core_vdev, struct nv_vpcdev,
++                                               vpcdev.vdev);
++    phys_dev_t *phys_dev, *tmp;
++
++    list_for_each_entry_safe(phys_dev, tmp, &phys_devices.phys_dev_list, next)
++    {
++        if (phys_dev->dev == pdev) {
++            nv_vpcdev->nv_phdev = phys_dev;
++            break;
++        }
++    }
+     return 0;
+ }
+ 
+ static void nv_vfio_pci_release_dev(struct vfio_device *core_vdev)
+ {
++#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 2, 0)
++    vfio_free_device(core_vdev);
++#endif
+ }
+ 
+ #if defined(NV_VFIO_MIGRATION_OPS_PRESENT)
+@@ -432,9 +448,10 @@ NV_STATUS nv_vfio_pci_core_init(phys_dev_t *phys_dev)
+ 
+     if (phys_dev->dev->is_virtfn) {
+         int ret;
++        struct nv_vpcdev *nv_vpcdev;
+ 
+-        ret = vfio_init_device(&phys_dev->vpcdev.vdev, &phys_dev->dev->dev, &nv_vfio_pci_ops);
+-        if (ret)
++        nv_vpcdev = vfio_alloc_device(nv_vpcdev, vpcdev.vdev, &phys_dev->dev->dev, &nv_vfio_pci_ops);
++        if (IS_ERR(nv_vpcdev))
+             return NV_ERR_OPERATING_SYSTEM;
+ 
+         /*
+@@ -442,30 +459,30 @@ NV_STATUS nv_vfio_pci_core_init(phys_dev_t *phys_dev)
+          * 91be0bd6c6cf21328017e990d3ceeb00f03821fd vfio/pci: Have all VFIO PCI
+          * drivers store the vfio_pci_core_device in drvdata
+          */
+-        dev_set_drvdata(&phys_dev->dev->dev, &phys_dev->vpcdev);
++        dev_set_drvdata(&phys_dev->dev->dev, &phys_dev->nvpcdev->vpcdev);
+ 
+ #if defined(NV_VFIO_DEVICE_MIG_STATE_PRESENT)
+-        phys_dev->vpcdev.vdev.migration_flags = VFIO_MIGRATION_STOP_COPY;
++        phys_dev->nvpcdev->vpcdev.vdev.migration_flags = VFIO_MIGRATION_STOP_COPY;
+ #endif
+ 
+ #if defined(NV_VFIO_MIGRATION_OPS_PRESENT)
+-        phys_dev->vpcdev.vdev.mig_ops = &nv_vfio_pci_migration_ops;
++        phys_dev->nvpcdev->vpcdev.vdev.mig_ops = &nv_vfio_pci_migration_ops;
+ #endif
+ 
+-        ret = vfio_pci_core_register_device(&phys_dev->vpcdev);
++        ret = vfio_pci_core_register_device(&phys_dev->nvpcdev->vpcdev);
+         if (ret) {
+             NV_VGPU_LOG(VGPU_ERR, "vfio_pci_core_register_device failed err: %d\n", ret);
+-            vfio_put_device(&phys_dev->vpcdev.vdev);
+-            phys_dev->vpcdev.pdev = NULL;
++            vfio_put_device(&phys_dev->nvpcdev->vpcdev.vdev);
++            //phys_dev->nvpcdev->vpcdev.pdev = NULL;
+             return NV_ERR_OPERATING_SYSTEM;
+         }
+ 
+         ret = sysfs_create_groups(&phys_dev->dev->dev.kobj, vf_dev_groups);
+         if (ret) {
+             NV_VGPU_LOG(VGPU_ERR, "Failed to create sysfs for vGPU types %d\n", ret);
+-            vfio_pci_core_unregister_device(&phys_dev->vpcdev);
+-            vfio_put_device(&phys_dev->vpcdev.vdev);
+-            phys_dev->vpcdev.pdev = NULL;
++            vfio_pci_core_unregister_device(&phys_dev->nvpcdev->vpcdev);
++            vfio_put_device(&phys_dev->nvpcdev->vpcdev.vdev);
++            //phys_dev->nvpcdev->vpcdev.pdev = NULL;
+             return NV_ERR_OPERATING_SYSTEM;
+         }
+     }
+@@ -474,10 +491,10 @@ NV_STATUS nv_vfio_pci_core_init(phys_dev_t *phys_dev)
+ 
+ void nv_vfio_pci_core_uninit(phys_dev_t *phys_dev)
+ {
+-    vfio_pci_core_unregister_device(&phys_dev->vpcdev);
++    vfio_pci_core_unregister_device(&phys_dev->nvpcdev->vpcdev);
+     dev_set_drvdata(&phys_dev->dev->dev, NULL);
+-    vfio_put_device(&phys_dev->vpcdev.vdev);
+-    phys_dev->vpcdev.pdev = NULL;
++    vfio_put_device(&phys_dev->nvpcdev->vpcdev.vdev);
++    //phys_dev->nvpcdev->vpcdev.pdev = NULL;
+     sysfs_remove_groups(&phys_dev->dev->dev.kobj, vf_dev_groups);
+ }
+ 
+-- 
+2.30.2
+
