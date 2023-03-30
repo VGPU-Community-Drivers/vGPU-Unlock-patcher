@@ -166,6 +166,31 @@ case "$1" in
         #vcfgpatch "$@"
         exit $?
         ;;
+    diff2c)
+        shift
+        [ $# -ge 1 -a -e "$1" ] || {
+            echo "Usage: $0 diff2c file.diff [blobfile]"
+            exit 1
+        }
+        cfile="${1%.diff}.c"
+        if [ -n "$2" -a -e "$2" -a "${2%nv-kernel.o_binary}" != "$2" ]; then
+            blob="$2"
+        else
+            blob=`basename "${1%.diff}" | sed -e 's/blob-\([0-9.]\+\).*/\1/'`
+            blob=`find "$BASEDIR" -mindepth 1 -maxdepth 1 -type d -name "NVIDIA-Linux-x86_64-${blob}*" | head -n 1`
+            [ -n "$blob" ] && blob="${blob}/kernel/nvidia/nv-kernel.o_binary"
+            [ -n "$blob" -a -e "$blob" ] || blob=""
+        fi
+        if [ -n "$blob" ]; then
+            offset=`nm "$blob" | sed -n -e '/ rm_ioctl$/ s/0*\([0-9a-f]*\) .*/0x\1/p'`
+        fi
+        (
+            [ -n "$offset" ] && echo "#define RM_IOCTL_OFFSET $offset"
+            sed -e 's/\(000000000\|0\)\([^:]*\): \([0-9A-F]\+\) \([0-9A-F]\+\).*/\t{ 0x0\2, 0x\3, 0x\4 },/' \
+                -e '/^[0-9a-f]\+$/ d' -e 's:^\([ \t]*\)#:\t\1//:' "$1"
+        ) > "$cfile"
+        exit 0
+        ;;
     *)
         echo "Usage: $0 [options] <vgpu-kvm | grid | general | wsys | grid-merge | general-merge | vcfg>"
         exit 1
