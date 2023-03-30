@@ -111,13 +111,19 @@ case "$1" in
         DO_UNLK=false
         SPOOF=false
         CUDAH=false
+        SWITCH_GRID_TO_GNRL=false
         ;;
     general)
         DO_GNRL=true
         DO_GRID=true
-        GRID="${GNRL}"
-        SOURCE="${GRID}"
-        TARGET="${GRID}-patched"
+        if $SWITCH_GRID_TO_GNRL; then
+            echo "WARNING: did not find general driver, trying to create it from grid one"
+            GNRL="${GRID/-grid}"
+        else
+            GRID="${GNRL}"
+        fi
+        SOURCE="${GNRL}"
+        TARGET="${GNRL}-patched"
         DO_UNLK=false
         SPOOF=false
         CUDAH=false
@@ -252,6 +258,9 @@ $SETUP_TESTSIGN && {
 $DO_VGPU && extract ${VGPU}.run
 $DO_GRID && {
     if $SWITCH_GRID_TO_GNRL; then
+      if [ -d ${GNRL} ]; then
+        echo "WARNING: skipping switch from grid to general as it seems present in ${GNRL}"
+      else
         extract ${GRID}.run ${GNRL}
         applypatch ${GNRL} vgpu-kvm-merge-grid-scripts.patch -R
         GRID=${GNRL}
@@ -262,6 +271,7 @@ $DO_GRID && {
         sed -e '/ MODULE:vgpu$/ d' -e '/kernel\/nvidia\/nv-vgpu-vmbus/ d'  -i ${GRID}/.manifest
         sed -e '/nvidia\/nv-vgpu-vmbus.c/ d' -i ${GRID}/kernel/nvidia/nvidia-sources.Kbuild
         sed -e '/^[ \t]*GRID_BUILD=1/ d' -i ${GRID}/kernel/conftest.sh
+      fi
     else
         extract ${GRID}.run
     fi
