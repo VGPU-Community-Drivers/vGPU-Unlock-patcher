@@ -9,10 +9,7 @@ GRID="NVIDIA-Linux-x86_64-525.85.05-grid"
 #WSYS="NVIDIA-Windows-x86_64-527.41"
 WSYS="NVIDIA-Windows-x86_64-528.24"
 
-SPOOF=true
-CUDAH=true
 KLOGT=true
-OPTVGPU=true
 TESTSIGN=true
 SETUP_TESTSIGN=false
 REPACK=false
@@ -25,6 +22,8 @@ fi
 VER_VGPU=`echo ${VGPU} | awk -F- '{print $4}'`
 VER_GRID=`echo ${GRID} | awk -F- '{print $4}'`
 
+NVGPLOPTPATCH=false
+FORCEUSENVGPL=false
 CP="cp -a"
 
 case `stat -f --format=%T .` in
@@ -56,21 +55,9 @@ DO_LIBS=true
 while [ $# -gt 0 -a "${1:0:2}" = "--" ]
 do
     case "$1" in
-        --no-spoof)
-            shift
-            SPOOF=false
-            ;;
-        --no-host-cuda)
-            shift
-            CUDAH=false
-            ;;
         --no-klogtrace)
             shift
             KLOGT=false
-            ;;
-        --no-opt-vgpu)
-            shift
-            OPTVGPU=false
             ;;
         --no-libs-patch)
             shift
@@ -88,6 +75,14 @@ do
             shift
             REPACK=true
             ;;
+        --force-nvidia-gpl-I-know-it-is-wrong)
+            shift
+            NVGPLOPTPATCH=true
+            ;;
+        --enable-nvidia-gpl-for-experimenting)
+            shift
+            FORCEUSENVGPL=true
+            ;;
         *)
             echo "Unknown option $1"
             shift
@@ -97,7 +92,6 @@ done
 
 case "$1" in
     vgpu*)
-        CUDAH=false
         DO_VGPU=true
         SOURCE="${VGPU}"
         TARGET="${VGPU}-patched"
@@ -109,8 +103,6 @@ case "$1" in
         SOURCE="${GRID}"
         TARGET="${GRID}-patched"
         DO_UNLK=false
-        SPOOF=false
-        CUDAH=false
         SWITCH_GRID_TO_GNRL=false
         ;;
     general)
@@ -125,8 +117,6 @@ case "$1" in
         SOURCE="${GNRL}"
         TARGET="${GNRL}-patched"
         DO_UNLK=false
-        SPOOF=false
-        CUDAH=false
         ;;
     wsys)
         DO_WSYS=true
@@ -434,27 +424,24 @@ kernel/nvidia/kern.ld 0644 KERNEL_MODULE_SRC INHERIT_PATH_DEPTH:1 MODULE:vgpu'
     applypatch ${TARGET} vgpu_unlock_hooks-510.patch
 fi
 
-if $SPOOF || $CUDAH || $KLOGT; then
-    $SPOOF && echo "applying spoof devid kprobe hook"
-    $CUDAH && echo "applying host cuda test kprobe hook"
-    $KLOGT && echo "applying klogtrace kprobe hook"
-    mkdir -p ${TARGET}/kernel/unlock
-    $CP "$BASEDIR/patches/kp_hooks.c" ${TARGET}/kernel/unlock
-    echo 'NVIDIA_SOURCES += unlock/kp_hooks.c' >> ${TARGET}/kernel/nvidia/nvidia-sources.Kbuild
-    $SPOOF && sed -e '/^NVIDIA_CFLAGS += .*BIT_MACROS$/aNVIDIA_CFLAGS += -DSPOOF_ID' -i ${TARGET}/kernel/nvidia/nvidia.Kbuild
-    $CUDAH && sed -e '/^NVIDIA_CFLAGS += .*BIT_MACROS$/aNVIDIA_CFLAGS += -DTEST_CUDA_HOST' -i ${TARGET}/kernel/nvidia/nvidia.Kbuild
-    $KLOGT && sed -e '/^NVIDIA_CFLAGS += .*BIT_MACROS$/aNVIDIA_CFLAGS += -DKLOGTRACE' -i ${TARGET}/kernel/nvidia/nvidia.Kbuild
-    sed -i ${TARGET}/.manifest -e '/^kernel\/nvidia\/i2c_nvswitch.c / a \
-kernel/unlock/kp_hooks.c 0644 KERNEL_MODULE_SRC INHERIT_PATH_DEPTH:1 MODULE:vgpu'
-    applypatch ${TARGET} setup-kprobe-hooks.patch
-    $KLOGT && applypatch ${TARGET} filter-for-nvrm-logs.patch
-fi
+echo "integrating runtime nv blob hooks"
+mkdir -p ${TARGET}/kernel/unlock
+$CP "$BASEDIR/patches/nv_hooks.c" ${TARGET}/kernel/unlock
+echo 'NVIDIA_SOURCES += unlock/nv_hooks.c' >> ${TARGET}/kernel/nvidia/nvidia-sources.Kbuild
+echo 'OBJECT_FILES_NON_STANDARD_nv_hooks.o := y' >> ${TARGET}/kernel/nvidia/nvidia.Kbuild
+sed -i ${TARGET}/.manifest -e '/^kernel\/nvidia\/i2c_nvswitch.c / a \
+kernel/unlock/nv_hooks.c 0644 KERNEL_MODULE_SRC INHERIT_PATH_DEPTH:1 MODULE:vgpu'
+echo
+applypatch ${TARGET} setup-vup-hooks.patch
+applypatch ${TARGET} filter-for-nvrm-logs.patch
+$NVGPLOPTPATCH && {
+    applypatch ${TARGET} switch-option-to-gpl-for-debug.patch
+    $FORCEUSENVGPL && sed -e '/^NVIDIA_CFLAGS += .*BIT_MACROS$/aNVIDIA_CFLAGS += -DFORCE_GPL_FOR_EXPERIMENTING' -i ${TARGET}/kernel/nvidia/nvidia.Kbuild
+}
+$DO_VGPU && applypatch ${TARGET} vgpu-kvm-optional-vgpu-v2.patch
 
-$DO_MRGD && $OPTVGPU && applypatch ${TARGET} vgpu-kvm-merged-optional-vgpu.patch
-
-blobpatch ${TARGET}/kernel/nvidia/nv-kernel.o_binary "$BASEDIR/patches/blob-${VER_BLOB}.diff" || exit 1
 $DO_MRGD && {
-    blobpatch ${TARGET}/kernel/nvidia/nv-kernel.o_binary "$BASEDIR/patches/blob-${VER_BLOB}-merged.diff" || exit 1
+    sed -e '/^NVIDIA_CFLAGS += .*BIT_MACROS$/aNVIDIA_CFLAGS += -DVUP_MERGED_DRIVER=1' -i ${TARGET}/kernel/nvidia/nvidia.Kbuild
     blobpatch ${TARGET}/libnvidia-ml.so.${VER_TARGET} "$BASEDIR/patches/libnvidia-ml.so.${VER_TARGET%.*}.diff" || exit 1
 }
 
