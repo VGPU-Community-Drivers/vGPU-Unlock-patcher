@@ -176,9 +176,9 @@ int main(int argc, char **argv)
         close(fd);
         return 1;
     }
-    printf("nsigpatch %s positive match at %08x", argv[1], p1 - file);
+    printf("nsigpatch %s positive match at %08lx", argv[1], p1 - file);
     for (i = 0; i < NFUNCS; i++)
-        printf(", %08x", crypt32_fps[i] - file);
+        printf(", %08lx", crypt32_fps[i] - file);
     printf("\n");
 
     for (gapsize = 0; gapsize <= 0x4000; gapsize += 0x100) {
@@ -245,9 +245,9 @@ int main(int argc, char **argv)
 
     cp = NULL;
     if (p1 != NULL) {
-        printf("nsigpatch %s found xrefs/%d at %08x", argv[1], bitsmode, p1 - file);
+        printf("nsigpatch %s found xrefs/%d at %08lx", argv[1], bitsmode, p1 - file);
         for (i = 0; i < NFUNCS; i++)
-            printf(", %08x", crypt32_fps[i] - file);
+            printf(", %08lx", crypt32_fps[i] - file);
         printf(" gapsize=0x%04x\n", gapsize);
         switch (bitsmode) {
         case 64:
@@ -263,7 +263,7 @@ int main(int argc, char **argv)
 
             if (cp != NULL) {
                 for (i = 0; i < sizeof(patch_new); i++) {
-                    printf("nsigpatch %08X: %02X %02X\n", cp - file + i, cp[i], patch_new[i]);
+                    printf("nsigpatch %08lX: %02X %02X\n", cp - file + i, cp[i], patch_new[i]);
                     cp[i] = patch_new[i];
                 }
             } else
@@ -283,7 +283,7 @@ int main(int argc, char **argv)
                 }
                 for (i = 0; i < size; i++) {
                     if (patch32[i] >= 0) {
-                        printf("nsigpatch %08X: %02X %02X\n", cp - file + i, cp[i], patch32[i]);
+                        printf("nsigpatch %08lX: %02X %02X\n", cp - file + i, cp[i], patch32[i]);
                         cp[i] = patch32[i];
                     }
                 }
