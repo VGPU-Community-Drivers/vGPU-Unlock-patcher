@@ -1,5 +1,5 @@
 diff --git a/kernel/unlock/vgpu_unlock_hooks.c b/kernel/unlock/vgpu_unlock_hooks.c
-index 9be623f..fc76cca 100644
+index 9be623f..ee1c674 100644
 --- a/kernel/unlock/vgpu_unlock_hooks.c
 +++ b/kernel/unlock/vgpu_unlock_hooks.c
 @@ -586,9 +586,9 @@ vgpu_unlock_vgpu_t;
@@ -15,11 +15,10 @@ index 9be623f..fc76cca 100644
  	  (dev_id),                          /* dev_id */         \
  	  0,                                 /* vend_id */        \
  	  (subsys_id),                       /* subsys_id */      \
-@@ -737,6 +737,16 @@ static vgpu_unlock_vgpu_t vgpu_unlock_vgpu[] =
- 	VGPU(0x1e30, 0x143e, "GRID RTX6000-8A"),
-	VGPU(0x1e30, 0x143f, "GRID RTX6000-12A"),
-	VGPU(0x1e30, 0x1440, "GRID RTX6000-24A"),
-+
+@@ -738,6 +738,16 @@ static vgpu_unlock_vgpu_t vgpu_unlock_vgpu[] =
+ 	VGPU(0x1e30, 0x143f, "GRID RTX6000-12A"),
+ 	VGPU(0x1e30, 0x1440, "GRID RTX6000-24A"),
+ 
 +	/* for testing with Turing */
 +	VGPU(0x1e30, 0x13b9, "GeForce RTX 2070-1"),
 +	VGPU(0x1e30, 0x13ba, "GeForce RTX 2070-2"),
@@ -29,9 +28,10 @@ index 9be623f..fc76cca 100644
 +	VGPU(0x1e30, 0x13be, "GeForce RTX 2070-6"),
 +	VGPU(0x1e30, 0x13cb, "GeForce RTX 2070-7"),
 +	VGPU(0x1e30, 0x13cc, "GeForce RTX 2070-8"),
- 
++
  	/* RTX A6000 (Ampere) */
  	VGPU(0x2230, 0x14fa, "NVIDIA RTXA6000-1B"),
+ 	VGPU(0x2230, 0x14fb, "NVIDIA RTXA6000-2B"),
 @@ -769,6 +779,7 @@ static vgpu_unlock_vgpu_t vgpu_unlock_vgpu[] =
  	VGPU(0x2230, 0x1519, "NVIDIA RTXA6000-24C"),
  	VGPU(0x2230, 0x151a, "NVIDIA RTXA6000-48C"),
@@ -65,7 +65,7 @@ index 9be623f..fc76cca 100644
  	vgpu_unlock_patch_applied = TRUE;
  
 -	LOG(KERN_WARNING "vGPU unlock patch applied.\n");
-+	printk(KERN_WARNING "nvidia: vGPU unlock patch applied.\n");
++	printk(KERN_INFO "nvidia: vGPU unlock patch applied.\n");
  
  	return;
  
@@ -74,3 +74,11 @@ index 9be623f..fc76cca 100644
  	vgpu_unlock_magic_found = FALSE;
  	vgpu_unlock_key_found = FALSE;
  }
+@@ -1223,6 +1235,7 @@ static void *vgpu_unlock_nv_ioremap_wc_hook(uint64_t phys,
+ #undef LOG
+ 
+ /* Redirect future callers to our hooks. */
++#undef memcpy
+ #define memcpy             vgpu_unlock_memcpy_hook
+ #define nv_ioremap         vgpu_unlock_nv_ioremap_hook
+ #define nv_ioremap_nocache vgpu_unlock_nv_ioremap_nocache_hook
