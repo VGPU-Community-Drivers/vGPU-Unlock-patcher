@@ -13,7 +13,7 @@ diff --git a/kernel/nvidia/os-interface.c b/kernel/nvidia/os-interface.c
 index c204f69..2f9072a 100644
 --- a/kernel/nvidia/os-interface.c
 +++ b/kernel/nvidia/os-interface.c
-@@ -693,6 +693,25 @@ inline void NV_API_CALL out_string(const char *str)
+@@ -774,6 +774,25 @@ inline void NV_API_CALL out_string(const char *str)
      printk("%s", str);
  }
  
@@ -39,7 +39,7 @@ index c204f69..2f9072a 100644
  /*
   * nv_printf() prints to the kernel log for the driver.
   * Returns the number of characters written.
-@@ -729,6 +748,15 @@ int NV_API_CALL nv_printf(NvU32 debuglevel, const char *printf_format, ...)
+@@ -810,6 +829,15 @@ int NV_API_CALL nv_printf(NvU32 debuglevel, const char *printf_format, ...)
          if (length < 1)
              return 0;
  
