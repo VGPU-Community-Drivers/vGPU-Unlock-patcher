@@ -1,0 +1,26 @@
+switch option to gpl for experimenting
+
+this is actually not needed anymore in this project so keeping it
+for debugging purposes if we needed kprobes or similar again in future
+
+i.e. this patch will not be applied by default - if needed,
+use --force-nvidia-gpl-I-know-it-is-wrong option of patch.sh script
+to apply this patch (another option will be needed to actually enable
+it's effect in a build)
+
+diff --git a/kernel/nvidia/nv-frontend.c b/kernel/nvidia/nv-frontend.c
+index 656382c..24d703b 100644
+--- a/kernel/nvidia/nv-frontend.c
++++ b/kernel/nvidia/nv-frontend.c
+@@ -30,7 +30,11 @@
+ 
+ 
+ 
++#if !defined(FORCE_GPL_FOR_EXPERIMENTING)
+ MODULE_LICENSE("NVIDIA");
++#else
++MODULE_LICENSE("GPL");
++#endif
+ 
+ #endif
+ #if defined(MODULE_INFO)
