@@ -1,0 +1,29 @@
+diff --git a/kernel/nvidia/nv-frontend.c b/kernel/nvidia/nv-frontend.c
+index eb7a2e0..52b2b87 100644
+--- a/kernel/nvidia/nv-frontend.c
++++ b/kernel/nvidia/nv-frontend.c
+@@ -344,10 +344,15 @@ int nvidia_frontend_mmap(
+     return rc;
+ }
+ 
++extern void vup_hooks_init(void);
++extern void vup_hooks_exit(void);
++
+ static int __init nvidia_frontend_init_module(void)
+ {
+     int status = 0;
+ 
++    vup_hooks_init();
++
+     // initialise nvidia module table;
+     nv_num_instances = 0;
+     memset(nv_minor_num_table, 0, sizeof(nv_minor_num_table));
+@@ -372,6 +377,8 @@ static int __init nvidia_frontend_init_module(void)
+ 
+ static void __exit nvidia_frontend_exit_module(void)
+ {
++    vup_hooks_exit();
++
+     /*
+      * If this is the last nvidia_module to be unregistered, cleanup and
+      * unregister char dev
