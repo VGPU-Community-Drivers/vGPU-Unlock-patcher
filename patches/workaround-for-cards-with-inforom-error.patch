@@ -1,0 +1,54 @@
+From: snowman <snowman@localhost.localdomain>
+Subject: [PATCH] workaround for cards with inforom error
+
+based on code found in vgpu_unlock_rs here - thanks to the author!
+https://github.com/mbilker/vgpu_unlock-rs/blob/master/src/lib.rs#L474
+
+spotted this when debugging support for GeForce GTX 980M of RogerS_01
+---
+ kernel/nvidia/nv.c | 22 ++++++++++++++++++++++
+ 1 file changed, 22 insertions(+)
+
+diff --git a/kernel/nvidia/nv.c b/kernel/nvidia/nv.c
+index 54071e4..53616ad 100644
+--- a/kernel/nvidia/nv.c
++++ b/kernel/nvidia/nv.c
+@@ -1995,6 +1995,19 @@ out:
+     return rc;
+ }
+ 
++// following structure taken from
++// https://github.com/NVIDIA/open-gpu-kernel-modules/blob/main/src/common/sdk/nvidia/inc/nvos.h
++typedef struct
++{
++    NvHandle hClient;
++    NvHandle hObject;
++    NvV32    cmd;
++    NvU32    flags;
++    NvP64    params NV_ALIGN_BYTES(8);
++    NvU32    paramsSize;
++    NvV32    status;
++} NVOS54_PARAMETERS;
++
+ int
+ nvidia_ioctl(
+     struct inode *inode,
+@@ -2327,6 +2340,15 @@ unlock:
+ 
+         default:
+             rmStatus = rm_ioctl(sp, nv, &nvlfp->nvfp, arg_cmd, arg_copy, arg_size);
++
++            // strange workaround for cards with inforom error, taken from here:
++            // https://github.com/mbilker/vgpu_unlock-rs/blob/master/src/lib.rs#L474
++            if (arg_cmd == 0x2a && arg_size == sizeof(NVOS54_PARAMETERS)) {
++                NVOS54_PARAMETERS *ac = arg_copy;
++                if (ac->cmd == 0x2080014b && ac->status == NV_ERR_NOT_SUPPORTED)
++                    ac->status = NV_ERR_OBJECT_NOT_FOUND;
++            }
++
+             status = ((rmStatus == NV_OK) ? 0 : -EINVAL);
+             break;
+     }
+-- 
+2.30.2
+
