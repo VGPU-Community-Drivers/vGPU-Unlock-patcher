@@ -4,13 +4,15 @@ Subject: [PATCH] vgpu kvm kernel 6.1 compat
 nvidia vgpu kvm 525.85 fixes for compatibility with linux 6.1 kernel
 
 tested with 6.1.21 version
+
+added a nasty hack to fix names of mdev types
 ---
  kernel/conftest.sh                           |  12 +-
- kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.c   | 182 +++++++------------
+ kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.c   | 189 ++++++++-----------
  kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.h   |  17 +-
- kernel/nvidia-vgpu-vfio/vgpu-vfio-mdev.c     |  81 ++++-----
+ kernel/nvidia-vgpu-vfio/vgpu-vfio-mdev.c     |  81 ++++----
  kernel/nvidia-vgpu-vfio/vgpu-vfio-pci-core.c |  23 ++-
- 5 files changed, 138 insertions(+), 177 deletions(-)
+ 5 files changed, 146 insertions(+), 176 deletions(-)
 
 diff --git a/kernel/conftest.sh b/kernel/conftest.sh
 index 0256a32..bc98b73 100755
@@ -46,7 +48,7 @@ index 0256a32..bc98b73 100755
              compile_check_conftest "$CODE" "NV_MDEV_DRIVER_HAS_SUPPORTED_TYPE_GROUPS" "" "types"
          ;;
 diff --git a/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.c b/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.c
-index b65f477..a1053f8 100644
+index b65f477..0914140 100644
 --- a/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.c
 +++ b/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.c
 @@ -40,6 +40,7 @@ struct phys_devs phys_devices;
@@ -125,9 +127,11 @@ index b65f477..a1053f8 100644
 -#if defined(NV_MDEV_GET_TYPE_GROUP_ID_PRESENT)
 -static ssize_t name_show(struct mdev_type *mtype,
 -                         struct mdev_type_attribute *attr, char *buf)
--{
++ssize_t nv_vgpu_vfio_description_show(struct mdev_type *mtype, char *buf)
+ {
 -    struct device *dev = mtype_get_parent_dev(mtype);
--    struct kobject *kobj = NULL;
++    struct device *dev = mtype->parent->dev;
+     struct kobject *kobj = NULL;
 -#else
 -static ssize_t name_show(struct kobject *kobj, struct device *dev, char *buf)
 -{
@@ -157,11 +161,9 @@ index b65f477..a1053f8 100644
 -#if defined(NV_MDEV_GET_TYPE_GROUP_ID_PRESENT)
 -static ssize_t description_show(struct mdev_type *mtype,
 -                         struct mdev_type_attribute *attr, char *buf)
-+ssize_t nv_vgpu_vfio_description_show(struct mdev_type *mtype, char *buf)
- {
+-{
 -    struct device *dev = mtype_get_parent_dev(mtype);
-+    struct device *dev = mtype->parent->dev;
-     struct kobject *kobj = NULL;
+-    struct kobject *kobj = NULL;
 -#else
 -static ssize_t description_show(struct kobject *kobj, struct device *dev, char *buf)
 -{
@@ -194,7 +196,7 @@ index b65f477..a1053f8 100644
      struct pci_dev *pdev = to_pci_dev(dev);
      NvU32 vgpu_type_id;
      NV_STATUS status;
-@@ -663,31 +630,11 @@ static ssize_t available_instances_show(struct kobject *kobj, struct device *dev
+@@ -663,31 +630,26 @@ static ssize_t available_instances_show(struct kobject *kobj, struct device *dev
      status = rm_vgpu_vfio_ops.get_instances(pdev, vgpu_type_id, buf);
      if (status != NV_OK)
          return -EIO;
@@ -202,10 +204,23 @@ index b65f477..a1053f8 100644
 +        return -EIO;
  
 -    return strlen(buf);
-+    return num;
- }
+-}
 -MDEV_TYPE_ATTR_RO(available_instances);
--
++    // this is a nasty hack, we should not do this here!
++    if (mtype->pretty_name == NULL) {
++        char *vgpu_type_prettyname = NULL;
++        NV_KMALLOC(vgpu_type_prettyname, VGPU_TYPE_PRETTYNAME_SIZE);
++        if (vgpu_type_prettyname != NULL) {
++            status = rm_vgpu_vfio_ops.get_name(pdev, vgpu_type_id, vgpu_type_prettyname);
++            if (status == NV_OK)
++                mtype->pretty_name = vgpu_type_prettyname;
++            else {
++                NV_KFREE(vgpu_type_prettyname, VGPU_TYPE_PRETTYNAME_SIZE);
++                printk(KERN_WARNING "nvidia: rm_vgpu_vfio_ops.get_name failed, status=0x%02x\n", status);
++            }
++        }
++    }
+ 
 -#if defined(NV_MDEV_GET_TYPE_GROUP_ID_PRESENT)
 -static ssize_t device_api_show(struct mdev_type *mtype,
 -                         struct mdev_type_attribute *attr, char *buf)
@@ -216,7 +231,8 @@ index b65f477..a1053f8 100644
 -{
 -    return sprintf(buf, "%s\n",
 -                   VFIO_DEVICE_API_PCI_STRING);
--}
++    return num;
+ }
 -MDEV_TYPE_ATTR_RO(device_api);
 -
 -static struct attribute *vgpu_type_attrs[] = {
@@ -229,7 +245,7 @@ index b65f477..a1053f8 100644
  
  static NvBool nv_wait_for_vgpu_task_exit(vgpu_dev_t *vgpu_dev)
  {
-@@ -4833,27 +4780,29 @@ flr_done:
+@@ -4833,27 +4795,29 @@ flr_done:
  
  #endif /* NV_VGPU_KVM_BUILD */
  
@@ -269,18 +285,16 @@ index b65f477..a1053f8 100644
  
      if (phys_dev->vgpu_type_ids != NULL)
      {
-@@ -4867,8 +4816,9 @@ static NV_STATUS nv_vgpu_probe(struct pci_dev *pdev, NvU32 num_vgpu_types, NvU32
+@@ -4867,7 +4831,7 @@ static NV_STATUS nv_vgpu_probe(struct pci_dev *pdev, NvU32 num_vgpu_types, NvU32
      NV_STATUS status = NV_OK;
  #if defined(NV_VGPU_KVM_BUILD)
      NvU32 i;
 -    struct  attribute_group *vgpu_type_group = NULL;
 +    struct mdev_type *mdev_type = NULL;
      char *vgpu_type_name = NULL;
-+    char *vgpu_type_prettyname = NULL;
      phys_dev_t *phys_dev = NULL;
  
-     if (nv_vgpu_kvm_enable_ptr != NULL && *nv_vgpu_kvm_enable_ptr == 0)
-@@ -4912,8 +4862,8 @@ static NV_STATUS nv_vgpu_probe(struct pci_dev *pdev, NvU32 num_vgpu_types, NvU32
+@@ -4912,8 +4876,8 @@ static NV_STATUS nv_vgpu_probe(struct pci_dev *pdev, NvU32 num_vgpu_types, NvU32
      memset(phys_dev, 0, sizeof(phys_dev_t));
  
      phys_dev->num_vgpu_types = num_vgpu_types;
@@ -291,33 +305,28 @@ index b65f477..a1053f8 100644
      {
          status = NV_ERR_NO_MEMORY;
          goto probe_fail;
-@@ -4929,22 +4879,35 @@ static NV_STATUS nv_vgpu_probe(struct pci_dev *pdev, NvU32 num_vgpu_types, NvU32
+@@ -4929,22 +4893,30 @@ static NV_STATUS nv_vgpu_probe(struct pci_dev *pdev, NvU32 num_vgpu_types, NvU32
  
      for (i = 0; i < phys_dev->num_vgpu_types; i++)
      {
 -        NV_KMALLOC(vgpu_type_group, sizeof(struct attribute_group));
 +        NV_KMALLOC(mdev_type, sizeof(struct mdev_type));
          NV_KMALLOC(vgpu_type_name, VGPU_TYPE_NAME_SIZE);
-+        NV_KMALLOC(vgpu_type_prettyname, VGPU_TYPE_PRETTYNAME_SIZE);
  
 -        if (vgpu_type_name == NULL || vgpu_type_group == NULL)
-+        if (vgpu_type_name == NULL || mdev_type == NULL
-+            || vgpu_type_prettyname == NULL)
++        if (vgpu_type_name == NULL || mdev_type == NULL)
          {
              status = NV_ERR_NO_MEMORY;
              goto probe_fail;
          }
 -        memset(vgpu_type_group, 0, sizeof(struct attribute_group));
 +        memset(mdev_type, 0, sizeof(struct mdev_type));
-+
-+        snprintf(vgpu_type_prettyname, VGPU_TYPE_PRETTYNAME_SIZE, "nvidia-%d", vgpu_type_ids[i]);
  
          snprintf(vgpu_type_name, VGPU_TYPE_NAME_SIZE,"%d",vgpu_type_ids[i]);
 -        vgpu_type_group->name = vgpu_type_name;
 -        vgpu_type_group->attrs = vgpu_type_attrs;
 -        phys_dev->vgpu_type_groups[i] = vgpu_type_group;
 +        mdev_type->sysfs_name = vgpu_type_name;
-+        mdev_type->pretty_name = vgpu_type_prettyname;
 +        phys_dev->mdev_types[i] = mdev_type;
      }
 -    phys_dev->vgpu_type_groups[i] = NULL;
@@ -334,7 +343,7 @@ index b65f477..a1053f8 100644
  
  #if defined(NV_USE_VFIO_PCI_CORE)
      if (!pdev->is_virtfn)
-@@ -4954,28 +4917,21 @@ static NV_STATUS nv_vgpu_probe(struct pci_dev *pdev, NvU32 num_vgpu_types, NvU32
+@@ -4954,28 +4926,21 @@ static NV_STATUS nv_vgpu_probe(struct pci_dev *pdev, NvU32 num_vgpu_types, NvU32
          if (status != NV_OK)
              goto probe_fail;
  
@@ -367,7 +376,7 @@ index b65f477..a1053f8 100644
      if (pdev->is_virtfn) {
          pci_disable_device(pdev);
      }
-@@ -5007,7 +4963,7 @@ static void nv_vgpu_remove(struct pci_dev *dev)
+@@ -5007,7 +4972,7 @@ static void nv_vgpu_remove(struct pci_dev *dev)
      {
          if (phys_dev->dev == dev)
          {
@@ -376,7 +385,7 @@ index b65f477..a1053f8 100644
              if (dev->is_virtfn)
              {
                  pci_disable_device(dev);
-@@ -5023,7 +4979,7 @@ static void nv_vgpu_remove(struct pci_dev *dev)
+@@ -5023,7 +4988,7 @@ static void nv_vgpu_remove(struct pci_dev *dev)
          down(&phys_dev->ops_lock);
          if (phys_dev->dev == dev)
          {
@@ -385,7 +394,7 @@ index b65f477..a1053f8 100644
              list_del(&phys_dev->next);
              up(&phys_dev->ops_lock);
              nv_vgpu_free_mdev_fops(phys_dev);
-@@ -5121,7 +5077,7 @@ static void __exit nv_vgpu_vfio_exit(void)
+@@ -5121,7 +5086,7 @@ static void __exit nv_vgpu_vfio_exit(void)
  
      list_for_each_entry_safe(phys_dev, tmpdev, &phys_devices.phys_dev_list, next)
      {
@@ -394,7 +403,7 @@ index b65f477..a1053f8 100644
          if (phys_dev->dev->is_virtfn)
          {
              pci_disable_device(phys_dev->dev);
-@@ -5133,7 +5089,7 @@ static void __exit nv_vgpu_vfio_exit(void)
+@@ -5133,7 +5098,7 @@ static void __exit nv_vgpu_vfio_exit(void)
      list_for_each_entry_safe(phys_dev, tmpdev, &phys_devices.phys_dev_list, next)
      {
          down(&phys_dev->ops_lock);
