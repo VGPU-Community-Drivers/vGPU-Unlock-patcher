@@ -1,60 +1,55 @@
 # vGPU-Unlock-patcher
-Solution to patch vGPU_Unlock into Nvidia Driver
-
-**_Kernel Support Update 2022-12-13::** 
-Tested to work with 6.0.11 linux kernel, it may work with kernels
-since v5.19-rc4-38-g34a255e67615 and possibly with kernels older
-than v5.18-rc6-74-g8e432bb015b6, but not with versions in between these
-two, it would need another build conditional for 5.18!
-The update was also tested on 5.10 Kernel!
+A solution to patch vGPU_Unlock into nvidia driver, including possibility to create a merged one.
 
 **_Support:_** [Join VGPU-Unlock discord for Support](https://discord.com/invite/5rQsSV3Byq)
 
 ## Usage
 
-1. Pre-download original `.run` files:
-   | Name | Version | Links |
-   | ----------- | ----------- | ----------- |
-   | NVIDIA-GRID-Linux-KVM-525.85.07-525.85.05-528.24 | Grid v15.1 | [Nvidia Download](https://enterprise-support.nvidia.com/s/login/?startURL=%2Fs%2F%3Ft%3D1657093205198), [Google Drive](https://drive.google.com/drive/folders/1Mwk0diSegzHx-7BeJdujPa1Vgyw5fd3s) |
+1. download original vgpu kvm `.run` files as available in a grid package `.zip` release, use the version matching the name of chosen branch of this project (the latest one is recommended)
+   - versions of vgpu releases are listed [here](https://docs.nvidia.com/grid/index.html)
+   - downloads are available from nvidia site [here](http://nvid.nvidia.com/dashboard/), evaluation account may be obtained [here](http://www.nvidia.com/object/vgpu-evaluation.html)
+   - if you need merged driver, download also standard linux desktop driver .run file, the version as set in GNRL in the beginning of the patch.sh script
 
-2. Setup Spoofing - edit `patch.sh` file and search
-   ```
-   if $DO_VGPU; then
-       applypatch ${TARGET} vcfg-testing.patch
-       vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1E84 0x0000
-   fi
-   ```
-   Change the ID's `0x1E30 0x12BA 0x1E84 0x0000` to a matching set
-   here:  
-   `0x1E30 0x12BA` Quadro RTX 6000 to  
-   `0x1E84 0x0000` RTX 2070 Super  
+2. optionally edit `patch.sh` file to add support for your gpu if it was not included yet
+   - search for "vcfgclone" lines, like for example:
+     ```shell
+        vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1E84 0x0000```
+     the first two hex numbers select officially supported gpu as listed in vgpuConfig.xml (which can be extracted from vgpu kvm .run file)
+     the example above is for Quadro RTX 6000 listed in the xml file as following:
+     ```xml
+        <pgpu><devId deviceId="0x1E30" subsystemId="0x12BA"/></pgpu>```
+     (fields that are not interesting for this example have been omitted)
+   - the "vcfgclone" line example above is adding support for RTX 2070 Super, which has 10de:1e84 pci device id (that you can find for your gpu via `lspci -nn` command), so we are using the device id part, the last number 0x0000 is subdevice id, which may be used to differentiate some specific models, usually not needed, so we can use zero number there
+   - just try to match the gpu architecture when adding a vcfgclone line, i.e. clone an officially supported pascal gpu if your gpu is pascal based
+   - another example would be adding support for GTX 1080 Ti by cloning Tesla P40:
+     Tesla P40 has 10de:1b38 pci device id and 10de:11d9 subsystem device id, listed in the xml as
+     ```shell
+        <pgpu><devId deviceId="0x1B38" subsystemId="0x0"/></pgpu>```
+   while the 1080 Ti can have 10de:1b06 pci devid with 10de:120f subsystem id for example, so the new vcfgclone line would have the first two numbers from the xml, the third number pci dev id of the card to be added and the fourth number can be zero or subsystem id (0x120f):
+     ```shell
+        vcfgclone ${TARGET}/vgpuConfig.xml 0x1B38 0x0 0x1B06 0x0000```
+   - when adding new vcfgclone lines, always refer into the xml to get the first two parameters and be sure to copy them case sensitively as the script searches for them as they are provided
 
-   E.g. P40 to 1080Ti:  
-   `0x1B38 0x11D9` Tesla P40 to  
-   `0x1B06 0x120F` 1080Ti  
-   The new vcfgclone line in this example:  
-   `vcfgclone ${TARGET}/vgpuConfig.xml 0x1B38 0x11D9 0x1B06 0x120F`
-
-3. Run one of these commands:  
-   `./patch.sh general-merge` creates a merge vgpu-kvm with consumer driver  
-   `./patch.sh vgpu-kvm` just patch the vgpu-kvm driver (in case you use secondary gpu) #proxmox  
-   `./patch.sh grid-merge` creates a merge vgpu-kvm with VGPU guest driver  
-   `./patch.sh grid`  
-   `./patch.sh general`  
-   `./patch.sh vcfg`
+3. Run one of these commands, depending on what you need:
+   ```shell
+      # a driver merged from vgpu-kvm with consumer driver (cuda and opengl for host too)
+      ./patch.sh general-merge
+      # display output on host not needed (proxmox) or you have secondary gpu
+      ./patch.sh vgpu-kvm
+      # driver for linux vm
+      ./patch.sh grid
+      # driver for linux vm functionally similar to grid one but using consumer .run as input
+      ./patch.sh general
+      # stuff for windows vm
+      ./patch.sh wsys```
 
 ## Changelog
-
-- `cudahost=1` nvidia module option of merged driver now works with all versions, enables also raytracing on host
-- multiple fixes and tuning in the default profiles for rtx 2070+
-- simplified patching focusing only on vgpu kvm blob, split the patch for merged driver extension
-- supports setup of general-merge converting grid variant to general in case general run file is not available
-- multiple versions in branches: 460.107, 470.141, 510.73, 510.85
-- with 460.107 version ray tracing works on host with general-merge driver even with windows VMs
+Please see commits history [here](https://github.com/VGPU-Community-Drivers/vGPU-Unlock-patcher/commits/).
 
 ### Other Options 
-
-`--repack` option that can be used to create unlocked/patched `.run` file (usually not necessary as you can simply start nvidia-installer from the directory).
+- any options need to be put before the target name
+- `--lk6-patches` include compat patches for kernel versions >= 6.1
+- `--repack` option that can be used to create unlocked/patched `.run` file (usually not necessary as you can simply start nvidia-installer from the directory).
 
 ### Credits
 - Thanks to the discord user @mbuchel for the experimental patches
