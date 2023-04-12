@@ -33,7 +33,7 @@ A solution to patch vGPU_Unlock into nvidia driver, including possibility to cre
         <pgpu><devId deviceId="0x1B38" subsystemId="0x0"/></pgpu>
         ```
         
-   while the 1080 Ti can have 10de:1b06 pci devid with 10de:120f subsystem id for example, so the new vcfgclone line would have the first two numbers from the xml, the third number pci dev id of the card to be added and the fourth number can be zero or subsystem id (0x120f):
+        while the 1080 Ti can have 10de:1b06 pci devid with 10de:120f subsystem id for example, so the new vcfgclone line would have the first two numbers from the xml, the third number pci dev id of the card to be added and the fourth number can be zero or subsystem id (0x120f):
         ```shell
         vcfgclone ${TARGET}/vgpuConfig.xml 0x1B38 0x0 0x1B06 0x0000
         ```
