@@ -12,26 +12,36 @@ A solution to patch vGPU_Unlock into nvidia driver, including possibility to cre
 
 2. optionally edit `patch.sh` file to add support for your gpu if it was not included yet
    - search for "vcfgclone" lines, like for example:
-     ```shell
-        vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1E84 0x0000```
+        ```shell
+        vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1E84 0x0000
+        ```
      the first two hex numbers select officially supported gpu as listed in vgpuConfig.xml (which can be extracted from vgpu kvm .run file)
+     
      the example above is for Quadro RTX 6000 listed in the xml file as following:
-     ```xml
-        <pgpu><devId deviceId="0x1E30" subsystemId="0x12BA"/></pgpu>```
+        ```xml
+        <pgpu><devId deviceId="0x1E30" subsystemId="0x12BA"/></pgpu>
+        ```
      (fields that are not interesting for this example have been omitted)
+     
    - the "vcfgclone" line example above is adding support for RTX 2070 Super, which has 10de:1e84 pci device id (that you can find for your gpu via `lspci -nn` command), so we are using the device id part, the last number 0x0000 is subdevice id, which may be used to differentiate some specific models, usually not needed, so we can use zero number there
+
    - just try to match the gpu architecture when adding a vcfgclone line, i.e. clone an officially supported pascal gpu if your gpu is pascal based
+
    - another example would be adding support for GTX 1080 Ti by cloning Tesla P40:
      Tesla P40 has 10de:1b38 pci device id and 10de:11d9 subsystem device id, listed in the xml as
-     ```shell
-        <pgpu><devId deviceId="0x1B38" subsystemId="0x0"/></pgpu>```
+        ```shell
+        <pgpu><devId deviceId="0x1B38" subsystemId="0x0"/></pgpu>
+        ```
+        
    while the 1080 Ti can have 10de:1b06 pci devid with 10de:120f subsystem id for example, so the new vcfgclone line would have the first two numbers from the xml, the third number pci dev id of the card to be added and the fourth number can be zero or subsystem id (0x120f):
-     ```shell
-        vcfgclone ${TARGET}/vgpuConfig.xml 0x1B38 0x0 0x1B06 0x0000```
+        ```shell
+        vcfgclone ${TARGET}/vgpuConfig.xml 0x1B38 0x0 0x1B06 0x0000
+        ```
+        
    - when adding new vcfgclone lines, always refer into the xml to get the first two parameters and be sure to copy them case sensitively as the script searches for them as they are provided
 
 3. Run one of these commands, depending on what you need:
-   ```shell
+      ```shell
       # a driver merged from vgpu-kvm with consumer driver (cuda and opengl for host too)
       ./patch.sh general-merge
       # display output on host not needed (proxmox) or you have secondary gpu
@@ -41,7 +51,8 @@ A solution to patch vGPU_Unlock into nvidia driver, including possibility to cre
       # driver for linux vm functionally similar to grid one but using consumer .run as input
       ./patch.sh general
       # stuff for windows vm
-      ./patch.sh wsys```
+      ./patch.sh wsys
+      ```
 
 ## Changelog
 Please see commits history [here](https://github.com/VGPU-Community-Drivers/vGPU-Unlock-patcher/commits/).
