@@ -18,6 +18,10 @@
 #endif
 #endif
 
+#ifndef X86_CR4_CET_BIT
+#define X86_CR4_CET_BIT 23
+#endif
+
 #ifndef VUP_MERGED_DRIVER
 #define VUP_MERGED_DRIVER 0
 #endif
@@ -26,11 +30,11 @@ struct vup_hook_info {
 	void (*func)(void);
 	const struct kernel_param *param;
 	u32 offset;
-	u8 pbytes[5];
+	s16 pbytes[14];
 };
 
-#define VUP_HOOK(offs, b0, b1, b2, b3, b4, name) \
-	{ vup_hook_##name##_naked, &__param_##name, offs, { b0,b1,b2,b3,b4 } }
+#define VUP_HOOK(offs, name, cbytes...) \
+	{ vup_hook_##name##_naked, &__param_##name, offs, { cbytes, -1 } }
 
 
 struct vup_patch_item {
@@ -57,6 +61,7 @@ static struct vup_patch_info vup_patch_info_##name = { \
 }
 #define VUP_PATCH(name) &vup_patch_info_##name
 
+static int vup_cr4_cet_enabled;
 
 #if defined(NV_VGPU_KVM_BUILD)
 static int vup_cudahost = VUP_MERGED_DRIVER;
@@ -90,7 +95,6 @@ static void vup_hook_cudahost_naked(void)
 		"pop    %rdx            \n"
 		"pop    %rsi            \n"
 		"pop    %rdi            \n"
-		"addq   $4, (%rsp)      \n"
 		"cmpb   $0, 0x739(%r12) \n"
 		"ret                    \n"
 		"int3                   \n"
@@ -136,7 +140,6 @@ static void vup_hook_vupdevid_naked(void)
 		"pop    %rdx            \n"
 		"pop    %rsi            \n"
 		"pop    %rdi            \n"
-		"incq   (%rsp)          \n"
 		"mov    %eax, 0xc(%rbp) \n"
 		"mov    %rbx, %rax      \n"
 		"ret                    \n"
@@ -190,12 +193,7 @@ static void vup_hook_klogtrace_naked(void)
 		"pop    %rdx            \n"
 		"pop    %rsi            \n"
 		"pop    %rdi            \n"
-		"push   %r14            \n"
-		"xchgq  %r15, 8(%rsp)   \n"
-		"addq   $2, %r15        \n"
-		"push   %r15            \n"
-		"mov    0x10(%rsp), %r15\n"
-		"mov    %esi, %r14d     \n"
+		"sub    $0x440, %rbp    \n"
 		"ret                    \n"
 		"int3                   \n"
 	);
@@ -205,12 +203,12 @@ STACK_FRAME_NON_STANDARD(vup_hook_klogtrace_naked);
 
 static struct vup_hook_info vup_hooks[] = {
 #if defined(NV_VGPU_KVM_BUILD)
-	VUP_HOOK(0x003A1BA0, 0x41, 0x80, 0xBC, 0x24, 0x39, cudahost),
-	VUP_HOOK(0x00492D7B, 0x89, 0x45, 0x0C, 0x48, 0x89, vupdevid),
-	VUP_HOOK(0x00014090, 0x41, 0x57, 0x41, 0x56, 0x41, klogtrace),
+	VUP_HOOK(0x003A1BA0, cudahost,  0x41, 0x80, 0xBC, 0x24, 0x39, 0x07, 0x00, 0x00, 0x00),
+	VUP_HOOK(0x00492D7B, vupdevid,  0x89, 0x45, 0x0C, 0x48, 0x89, 0xd8),
+	VUP_HOOK(0x0001409C, klogtrace, 0x48, 0x81, 0xED, 0x40, 0x04, 0x00, 0x00),
 #else
-	VUP_HOOK(0x00492D7B, 0x89, 0x45, 0x0C, 0x48, 0x89, vupdevid),
-	VUP_HOOK(0x00014090, 0x41, 0x57, 0x41, 0x56, 0x41, klogtrace),
+	VUP_HOOK(0x00492D7B, vupdevid,  0x89, 0x45, 0x0C, 0x48, 0x89, 0xd8),
+	VUP_HOOK(0x0001409C, klogtrace, 0x48, 0x81, 0xED, 0x40, 0x04, 0x00, 0x00),
 #endif
 };
 
@@ -239,7 +237,7 @@ static struct vup_patch_item vup_diff_qmode[] = {
 	{ 0x0049884F, 0x0D, 0x07 },
 	{ 0x00498858, 0x84, 0x85 },
 };
-VUP_PATCH_DEF(qmode, 1, 0);
+VUP_PATCH_DEF(qmode, 0, 0);
 
 static struct vup_patch_item vup_diff_merged[] = {
 	{ 0x000A3076, 0x1A, 0x00 },
@@ -296,19 +294,23 @@ static void vup_inject_hooks(u8 *blob)
 			       "logbuf too small (%s)\n", hi->param->name);
 		if (arg < 0)
 			continue;
-		for (j = 0; j < ARRAY_SIZE(hi->pbytes); j++)
+		for (j = 0; hi->pbytes[j] >= 0; j++)
 			if (blob[hi->offset + j] != hi->pbytes[j])
 				break;
-		if (j != ARRAY_SIZE(hi->pbytes)) {
+		if (hi->pbytes[j] >= 0) {
 			printk(KERN_ERR "nvidia: vup_inject_hooks %s "
 			       "failed (%d)\n", hi->param->name, j);
 			continue;
 		}
-		blob[hi->offset] = 0xe8;
-		*(u32 *)(&blob[hi->offset + 1]) =
-			(u8 *)hi->func - &blob[hi->offset + 5];
+		j -= 5;
+		blob[hi->offset + j] = 0xe8;
+		*(u32 *)(&blob[hi->offset + j + 1]) =
+			(u8 *)hi->func - &blob[hi->offset + j + 5];
+		for (j--; j >= 0; j--)
+			blob[hi->offset + j] = 0x90;
 	}
-	printk(KERN_INFO "nvidia: vup_inject_hooks%s\n", logbuf);
+	printk(KERN_INFO "nvidia: vup_inject_hooks cetbit=%d%s\n",
+	       vup_cr4_cet_enabled, logbuf);
 }
 
 static void vup_apply_patches(u8 *base)
@@ -354,11 +356,24 @@ static inline void vup_set_cr0(unsigned long val)
 	asm volatile("mov %0, %%cr0" : "+r"(val) : : "memory");
 }
 
+static inline void vup_set_cr4(unsigned long val)
+{
+	asm volatile("mov %0, %%cr4" : "+r"(val) : : "memory");
+}
+
 static int vup_patching_start(void)
 {
 	unsigned long cr0;
+	unsigned long cr4;
 	preempt_disable();
 	barrier();
+	cr4 = __read_cr4();
+	if (test_bit(X86_CR4_CET_BIT, &cr4)) {
+		vup_cr4_cet_enabled = 1;
+		clear_bit(X86_CR4_CET_BIT, &cr4);
+		vup_set_cr4(cr4);
+		barrier();
+	}
 	cr0 = read_cr0();
 	clear_bit(16, &cr0);
 	vup_set_cr0(cr0);
@@ -375,6 +390,12 @@ static void vup_patching_done(void)
 	set_bit(16, &cr0);
 	vup_set_cr0(cr0);
 	barrier();
+	if (vup_cr4_cet_enabled) {
+		unsigned long cr4 = __read_cr4();
+		set_bit(X86_CR4_CET_BIT, &cr4);
+		vup_set_cr4(cr4);
+		barrier();
+	}
 	preempt_enable_no_resched();
 }
 
