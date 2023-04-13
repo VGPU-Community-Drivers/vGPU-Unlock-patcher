@@ -480,13 +480,6 @@ if $DO_VGPU; then
     echo
 fi
 
-if $DO_LK6P; then
-    applypatch ${TARGET} vgpu-kvm-kernel-6.3-compat-common.patch
-    if [ -d ${TARGET}/kernel/nvidia-drm -a -d ${TARGET}/kernel/nvidia-uvm ]; then
-        applypatch ${TARGET} vgpu-kvm-kernel-6.3-compat-drmuvm.patch
-    fi
-fi
-
 if $REPACK; then
     REPACK_OPTS="${REPACK_OPTS:---silent}"
     [ -e ${TARGET}.lsm ] && REPACK_OPTS="${REPACK_OPTS} --lsm ${TARGET}.lsm"
