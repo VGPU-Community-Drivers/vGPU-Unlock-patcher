@@ -40,10 +40,10 @@ index 792287b..43d895e 100644
  extern NvU32 num_probed_nv_devices;
  extern NvU32 num_nv_devices;
 diff --git a/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.c b/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.c
-index b91a0be..b65f477 100644
+index 045d7f1..a0dbf2c 100644
 --- a/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.c
 +++ b/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.c
-@@ -45,6 +45,8 @@ struct phys_devs phys_devices;
+@@ -48,6 +48,8 @@ NvBool is_driver_vm;
  static void vgpu_msix_disable(vgpu_dev_t *vgpu_dev);
  static int do_vf_flr(vgpu_dev_t *vgpu_dev);
  
@@ -52,7 +52,7 @@ index b91a0be..b65f477 100644
  NV_STATUS (*get_ops) (rm_vgpu_vfio_ops_t *);
  NV_STATUS (*set_ops) (vgpu_vfio_ops_t *);
  
-@@ -4869,6 +4871,9 @@ static NV_STATUS nv_vgpu_probe(struct pci_dev *pdev, NvU32 num_vgpu_types, NvU32
+@@ -4873,6 +4875,9 @@ static NV_STATUS nv_vgpu_probe(struct pci_dev *pdev, NvU32 num_vgpu_types, NvU32
      char *vgpu_type_name = NULL;
      phys_dev_t *phys_dev = NULL;
  
@@ -62,7 +62,7 @@ index b91a0be..b65f477 100644
      down(&phys_devices.phys_dev_list_lock);
      if (((status = get_phys_dev(pdev, &phys_dev)) != NV_OK) || (phys_dev != NULL))
      {
-@@ -4992,6 +4997,9 @@ static void nv_vgpu_remove(struct pci_dev *dev)
+@@ -4996,6 +5001,9 @@ static void nv_vgpu_remove(struct pci_dev *dev)
  #if defined(NV_VGPU_KVM_BUILD)
      phys_dev_t *phys_dev, *tmp;
  
@@ -72,18 +72,18 @@ index b91a0be..b65f477 100644
      if(list_empty(&phys_devices.phys_dev_list))
          return;
  
-@@ -5033,6 +5041,10 @@ static int __init nv_vgpu_vfio_init(void)
-     int ret = 0;
+@@ -5047,6 +5055,10 @@ static int __init nv_vgpu_vfio_init(void)
+         {}
+     };
  
- #if defined(NV_VGPU_KVM_BUILD)
 +    nv_vgpu_kvm_enable_ptr = symbol_get(nv_vgpu_kvm_enable);
 +    if (nv_vgpu_kvm_enable_ptr != NULL && *nv_vgpu_kvm_enable_ptr == 0)
 +        return 0;
 +
      rm_vgpu_vfio_ops.version_string = NV_VERSION_STRING;
- 
      get_ops = NULL;
-@@ -5101,6 +5113,12 @@ static void __exit nv_vgpu_vfio_exit(void)
+     set_ops = NULL;
+@@ -5121,6 +5133,12 @@ static void __exit nv_vgpu_vfio_exit(void)
  #if defined(NV_VGPU_KVM_BUILD)
      phys_dev_t *phys_dev, *tmpdev;
  
@@ -123,7 +123,7 @@ index 52b2b87..7e861f4 100644
      if (status < 0)
      {
 diff --git a/kernel/nvidia/nv-mmap.c b/kernel/nvidia/nv-mmap.c
-index 35a0347..a665fdf 100644
+index da01e46..140d53d 100644
 --- a/kernel/nvidia/nv-mmap.c
 +++ b/kernel/nvidia/nv-mmap.c
 @@ -411,7 +411,7 @@ int static nvidia_mmap_sysmem(
@@ -190,10 +190,10 @@ index 311d9fd..e3f45dd 100644
  #endif
  
 diff --git a/kernel/nvidia/nv-vgpu-vfio-interface.c b/kernel/nvidia/nv-vgpu-vfio-interface.c
-index f5fb348..4e6385a 100644
+index cb082f8..0d98dc3 100644
 --- a/kernel/nvidia/nv-vgpu-vfio-interface.c
 +++ b/kernel/nvidia/nv-vgpu-vfio-interface.c
-@@ -558,6 +558,9 @@ NV_STATUS NV_API_CALL os_call_vgpu_vfio(void *pvgpu_vfio_info, NvU32 cmd)
+@@ -569,6 +569,9 @@ NV_STATUS NV_API_CALL os_call_vgpu_vfio(void *pvgpu_vfio_info, NvU32 cmd)
      nv_linux_state_t  *nvl;
      struct pci_dev    *pci_dev = NULL;
  
