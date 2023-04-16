@@ -1,0 +1,33 @@
+diff --git a/kernel/nvidia/nv-frontend.c b/kernel/nvidia/nv-frontend.c
+index 3ffdac5..e412436 100644
+--- a/kernel/nvidia/nv-frontend.c
++++ b/kernel/nvidia/nv-frontend.c
+@@ -38,6 +38,12 @@ MODULE_ALIAS_CHARDEV_MAJOR(NV_MAJOR_DEVICE_NUMBER);
+  */
+ #if defined(MODULE_IMPORT_NS)
+ 
++/*
++ * DMA_BUF namespace is added by commit id 16b0314aa746
++ * ("dma-buf: move dma-buf symbols into the DMA_BUF module namespace") in 5.16
++ */
++MODULE_IMPORT_NS(DMA_BUF);
++
+ #endif
+ 
+ static NvU32 nv_num_instances;
+diff --git a/kernel/nvidia/os-interface.c b/kernel/nvidia/os-interface.c
+index 4168b03..d4bb99b 100644
+--- a/kernel/nvidia/os-interface.c
++++ b/kernel/nvidia/os-interface.c
+@@ -45,7 +45,11 @@ NvU8  os_page_shift = PAGE_SHIFT;
+ NvU32 os_sev_status = 0;
+ NvBool os_sev_enabled = 0;
+ 
++#if defined(CONFIG_DMA_SHARED_BUFFER)
++NvBool os_dma_buf_enabled = NV_TRUE;
++#else
+ NvBool os_dma_buf_enabled = NV_FALSE;
++#endif // CONFIG_DMA_SHARED_BUFFER
+ 
+ void NV_API_CALL os_disable_console_access(void)
+ {
