@@ -26,6 +26,8 @@ VER_GRID=`echo ${GRID} | awk -F- '{print $4}'`
 
 NVGPLOPTPATCH=false
 FORCEUSENVGPL=false
+TDMABUFEXPORT=false
+
 CP="cp -a"
 
 case `stat -f --format=%T .` in
@@ -89,6 +91,10 @@ do
         --enable-nvidia-gpl-for-experimenting)
             shift
             FORCEUSENVGPL=true
+            ;;
+        --test-dmabuf-export)
+            shift
+            TDMABUFEXPORT=true
             ;;
         *)
             echo "Unknown option $1"
@@ -444,6 +450,10 @@ applypatch ${TARGET} filter-for-nvrm-logs.patch
 $NVGPLOPTPATCH && {
     applypatch ${TARGET} switch-option-to-gpl-for-debug.patch
     $FORCEUSENVGPL && sed -e '/^NVIDIA_CFLAGS += .*BIT_MACROS$/aNVIDIA_CFLAGS += -DFORCE_GPL_FOR_EXPERIMENTING' -i ${TARGET}/kernel/nvidia/nvidia.Kbuild
+}
+$TDMABUFEXPORT && {
+    applypatch ${TARGET} test-dmabuf-export.patch
+    cp -p ${TARGET}/kernel-open/nvidia/nv-dmabuf.c ${TARGET}/kernel/nvidia/nv-dmabuf.c
 }
 $DO_VGPU && applypatch ${TARGET} vgpu-kvm-optional-vgpu-v2.patch
 
