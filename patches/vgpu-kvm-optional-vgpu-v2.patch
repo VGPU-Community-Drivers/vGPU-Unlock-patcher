@@ -1,7 +1,7 @@
 From: snowman <snowman@localhost.localdomain>
-Subject: [PATCH] vgpu kvm optional vgpu v2
+Subject: [PATCH] vgpu kvm optional vgpu v2x
 
-this is a second attempt to optionaly disable vgpu-kvm support
+this is an extended v2 to optionaly disable vgpu-kvm support
 in nvidia driver via vgpukvm module parameter
 
 allows to define secondary boot with vgpu-kvm disabled in order
@@ -13,6 +13,9 @@ this v2 fixes many compile warnings, also it is not anymore specific
 only to merged driver as it can be useful with vgpu-kvm driver too,
 for example to boot with efifb console that would normally get
 destroyed by vgpu-kvm nvidia driver
+
+v2 additionally extended so that vgpukvm > 0 enables vgpu mode and
+vgpukvm <= 0 disables it (a minor change, thus only v2x)
 
 also provided kmalimit nvidia module parameter to test override
 of KMALLOC_LIMIT in os_alloc_mem()
@@ -56,7 +59,7 @@ index b91a0be..b65f477 100644
      char *vgpu_type_name = NULL;
      phys_dev_t *phys_dev = NULL;
  
-+    if (nv_vgpu_kvm_enable_ptr != NULL && *nv_vgpu_kvm_enable_ptr == 0)
++    if (nv_vgpu_kvm_enable_ptr != NULL && *nv_vgpu_kvm_enable_ptr <= 0)
 +        return status;
 +
      down(&phys_devices.phys_dev_list_lock);
@@ -66,7 +69,7 @@ index b91a0be..b65f477 100644
  #if defined(NV_VGPU_KVM_BUILD)
      phys_dev_t *phys_dev, *tmp;
  
-+    if (nv_vgpu_kvm_enable_ptr != NULL && *nv_vgpu_kvm_enable_ptr == 0)
++    if (nv_vgpu_kvm_enable_ptr != NULL && *nv_vgpu_kvm_enable_ptr <= 0)
 +        return;
 +
      if(list_empty(&phys_devices.phys_dev_list))
@@ -77,7 +80,7 @@ index b91a0be..b65f477 100644
  
  #if defined(NV_VGPU_KVM_BUILD)
 +    nv_vgpu_kvm_enable_ptr = symbol_get(nv_vgpu_kvm_enable);
-+    if (nv_vgpu_kvm_enable_ptr != NULL && *nv_vgpu_kvm_enable_ptr == 0)
++    if (nv_vgpu_kvm_enable_ptr != NULL && *nv_vgpu_kvm_enable_ptr <= 0)
 +        return 0;
 +
      rm_vgpu_vfio_ops.version_string = NV_VERSION_STRING;
@@ -89,7 +92,7 @@ index b91a0be..b65f477 100644
  
 +    if (nv_vgpu_kvm_enable_ptr != NULL) {
 +        symbol_put(nv_vgpu_kvm_enable);
-+            if (*nv_vgpu_kvm_enable_ptr == 0)
++            if (*nv_vgpu_kvm_enable_ptr <= 0)
 +                return;
 +    }
 +
@@ -109,7 +112,7 @@ index 52b2b87..7e861f4 100644
 +#define VUP_MERGED_DRIVER 0
 +#endif
 +    if (nv_vgpukvm_kmalloc_limit == 0) {
-+        if (nv_vgpu_kvm_enable)
++        if (nv_vgpu_kvm_enable > 0)
 +            nv_vgpukvm_kmalloc_limit = 8192;
 +        else
 +            nv_vgpukvm_kmalloc_limit = 131072;
@@ -131,7 +134,7 @@ index 35a0347..a665fdf 100644
  
  #if defined(NV_VGPU_KVM_BUILD)
 -        if (at->flags.guest)
-+        if (nv_vgpu_kvm_enable && at->flags.guest)
++        if (nv_vgpu_kvm_enable > 0 && at->flags.guest)
          {
              ret = nv_remap_page_range(vma, start, at->page_table[j]->phys_addr,
                                        PAGE_SIZE, vma->vm_page_prot);
@@ -143,7 +146,7 @@ index 311d9fd..e3f45dd 100644
      if (pci_dev->is_virtfn)
      {
  #if defined(NV_VGPU_KVM_BUILD)
-+      if (nv_vgpu_kvm_enable) {
++      if (nv_vgpu_kvm_enable > 0) {
          nvl = pci_get_drvdata(pci_dev->physfn);
          if (!nvl)
          {
@@ -169,7 +172,7 @@ index 311d9fd..e3f45dd 100644
      rm_set_rm_firmware_requested(sp, nv);
  
  #if defined(NV_VGPU_KVM_BUILD)
-+    if (nv_vgpu_kvm_enable)
++    if (nv_vgpu_kvm_enable > 0)
      if (nvidia_vgpu_vfio_probe(nvl->pci_dev) != NV_OK)
      {
          NV_DEV_PRINTF(NV_DBG_ERRORS, nv, "Failed to register device to vGPU VFIO module");
@@ -177,7 +180,7 @@ index 311d9fd..e3f45dd 100644
      {
  #if defined(NV_VGPU_KVM_BUILD)
          /* Arg 2 == NV_TRUE means that the PCI device should be removed */
-+      if (nv_vgpu_kvm_enable)
++      if (nv_vgpu_kvm_enable > 0)
          nvidia_vgpu_vfio_remove(pci_dev, NV_TRUE);
  #endif /* NV_VGPU_KVM_BUILD */
          return;
@@ -185,7 +188,7 @@ index 311d9fd..e3f45dd 100644
  
  #if defined(NV_VGPU_KVM_BUILD)
      /* Arg 2 == NV_TRUE means that the PCI device should be removed */
-+    if (nv_vgpu_kvm_enable)
++    if (nv_vgpu_kvm_enable > 0)
      nvidia_vgpu_vfio_remove(pci_dev, NV_TRUE);
  #endif
  
@@ -197,7 +200,7 @@ index f5fb348..4e6385a 100644
      nv_linux_state_t  *nvl;
      struct pci_dev    *pci_dev = NULL;
  
-+    if (!nv_vgpu_kvm_enable)
++    if (nv_vgpu_kvm_enable <= 0)
 +        return NV_ERR_NOT_SUPPORTED;
 +
      switch (cmd)
@@ -229,7 +232,7 @@ index 435ac47..43ca42c 100644
  {
  #if defined(NV_VGX_HYPER)
 -    return NV_TRUE;
-+    return nv_vgpu_kvm_enable ? NV_TRUE : NV_FALSE;
++    return nv_vgpu_kvm_enable > 0 ? NV_TRUE : NV_FALSE;
  #else
      return NV_FALSE;
  #endif
