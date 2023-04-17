@@ -1,4 +1,5 @@
 #include "os-interface.h"
+#include "nv-linux.h"
 
 #include <linux/module.h>
 #include <linux/mm.h>
@@ -30,11 +31,12 @@ struct vup_hook_info {
 	void (*func)(void);
 	const struct kernel_param *param;
 	u32 offset;
+	int ovgpu;
 	s16 pbytes[14];
 };
 
-#define VUP_HOOK(offs, name, cbytes...) \
-	{ vup_hook_##name##_naked, &__param_##name, offs, { cbytes, -1 } }
+#define VUP_HOOK(offs, name, vgpuopt, cbytes...) \
+	{ vup_hook_##name##_naked, &__param_##name, offs, vgpuopt, { cbytes, -1 } }
 
 
 struct vup_patch_item {
@@ -48,9 +50,10 @@ struct vup_patch_info {
 	struct vup_patch_item *items;
 	int count;
 	int enabv;
+	int ovgpu;
 };
 
-#define VUP_PATCH_DEF(name, defval, enabval) \
+#define VUP_PATCH_DEF(name, defval, enabval, vgpuopt) \
 static int vup_patch_##name = defval; \
 module_param_named(vup_##name, vup_patch_##name, int, 0400); \
 static struct vup_patch_info vup_patch_info_##name = { \
@@ -58,9 +61,11 @@ static struct vup_patch_info vup_patch_info_##name = { \
 	.items = vup_diff_##name, \
 	.count = ARRAY_SIZE(vup_diff_##name), \
 	.enabv = enabval, \
+	.ovgpu = vgpuopt, \
 }
 #define VUP_PATCH(name) &vup_patch_info_##name
 
+static int vup_vgpukvm_opt;
 static int vup_cr4_cet_enabled;
 
 #if defined(NV_VGPU_KVM_BUILD)
@@ -146,13 +151,21 @@ static void vup_hook_vupdevid_naked(void)
 }
 STACK_FRAME_NON_STANDARD(vup_hook_vupdevid_naked);
 
+static int vup_klogtrace_filter[][2] = {
+	{ 0xbfe247, 0x04d2 },
+	{ 0xe3cee1, 0x0664 },
+};
 
 static int vup_klogtrace;
 module_param_named(klogtrace, vup_klogtrace, int, 0600);
 
+static int vup_klogtrace_filtercnt = 8;
+module_param_named(klogtracefc, vup_klogtrace_filtercnt, int, 0600);
+
 __attribute__((used))
 static void vup_hook_klogtrace(u64 rdi, u64 rsi)
 {
+	int i;
 	int id, pt, a1, a2;
 	if (vup_klogtrace < 1)
 		return;
@@ -161,14 +174,14 @@ static void vup_hook_klogtrace(u64 rdi, u64 rsi)
 	a1 = (rdi >> 24) & 0xff;
 	a2 = rsi & 0xffff;
 	if (vup_klogtrace == 1) {
-		if (id == 0xbfe247 && pt == 0x04d2
-		    && a2 == 0x4000 && a1 == 0x0e)
-		{
-			static int prncount = 8;
-			if (prncount == 0)
-				return;
-			prncount--;
-		}
+		for (i = 0; i < ARRAY_SIZE(vup_klogtrace_filter); i++)
+			if (id == vup_klogtrace_filter[i][0]
+			    && pt == vup_klogtrace_filter[i][1])
+			{
+				if (vup_klogtrace_filtercnt == 0)
+					return;
+				vup_klogtrace_filtercnt--;
+			}
 	}
 	printk(KERN_DEBUG "NVTRACE %06x:%04x %04x%02x\n", id, pt, a2, a1);
 }
@@ -201,12 +214,12 @@ STACK_FRAME_NON_STANDARD(vup_hook_klogtrace_naked);
 
 static struct vup_hook_info vup_hooks[] = {
 #if defined(NV_VGPU_KVM_BUILD)
-	VUP_HOOK(0x003B97D4, cudahost,  0x41, 0x80, 0xBE, 0x41, 0x07, 0x00, 0x00, 0x00),
-	VUP_HOOK(0x004B2D66, vupdevid,  0x4C, 0x89, 0xE0, 0x44, 0x89, 0xFB),
-	VUP_HOOK(0x0001546F, klogtrace, 0x48, 0x81, 0xED, 0x30, 0x04, 0x00, 0x00),
+	VUP_HOOK(0x003B97D4, cudahost, 1, 0x41, 0x80, 0xBE, 0x41, 0x07, 0x00, 0x00, 0x00),
+	VUP_HOOK(0x004B2D66, vupdevid, 1, 0x4C, 0x89, 0xE0, 0x44, 0x89, 0xFB),
+	VUP_HOOK(0x0001546F, klogtrace,0, 0x48, 0x81, 0xED, 0x30, 0x04, 0x00, 0x00),
 #else
-	VUP_HOOK(0x004B2D86, vupdevid,  0x4C, 0x89, 0xE0, 0x44, 0x89, 0xFB),
-	VUP_HOOK(0x0001546F, klogtrace, 0x48, 0x81, 0xED, 0x30, 0x04, 0x00, 0x00),
+	VUP_HOOK(0x004B2D86, vupdevid, 1, 0x4C, 0x89, 0xE0, 0x44, 0x89, 0xFB),
+	VUP_HOOK(0x0001546F, klogtrace,0, 0x48, 0x81, 0xED, 0x30, 0x04, 0x00, 0x00),
 #endif
 };
 
@@ -219,7 +232,7 @@ static struct vup_patch_item vup_diff_vgpusig[] = {
 	// based on patch from mbuchel to disable vgpu config signature
 	{ 0x000B1223, 0x85, 0x31 },
 };
-VUP_PATCH_DEF(vgpusig, 1, 1);
+VUP_PATCH_DEF(vgpusig, 1, 1, 1);
 
 static struct vup_patch_item vup_diff_kunlock[] = {
 	{ 0x000B3918, 0x75, 0xEB },
@@ -230,26 +243,26 @@ static struct vup_patch_item vup_diff_kunlock[] = {
 	{ 0x004B2FB2, 0x75, 0xEB },
 	{ 0x004B9CAF, 0xF8, 0xC8 },
 };
-VUP_PATCH_DEF(kunlock, 1, 1);
+VUP_PATCH_DEF(kunlock, 1, 1, 1);
 
 static struct vup_patch_item vup_diff_qmode[] = {
 	{ 0x004B8826, 0x0D, 0x07 },
 	{ 0x004B882F, 0x84, 0x85 },
 };
-VUP_PATCH_DEF(qmode, 0, 0);
+VUP_PATCH_DEF(qmode, 0, 0, 1);
 
 static struct vup_patch_item vup_diff_merged[] = {
 	{ 0x000A94C6, 0x74, 0xEB },
 	{ 0x000A9B68, 0x74, 0xEB },
 	{ 0x0048FA75, 0x2A, 0x00 },
 };
-VUP_PATCH_DEF(merged, VUP_MERGED_DRIVER, 1);
+VUP_PATCH_DEF(merged, VUP_MERGED_DRIVER, 1, 1);
 
 static struct vup_patch_item vup_diff_sunlock[] = {
 	// based on patch from LIL'pingu fixing xid 43 crashes
 	{ 0x00835C8C, 0x10, 0x00 },
 };
-VUP_PATCH_DEF(sunlock, 0, 1);
+VUP_PATCH_DEF(sunlock, 0, 1, 1);
 
 struct vup_patch_info *vup_patches[] = {
 	VUP_PATCH(vgpusig),
@@ -261,13 +274,16 @@ struct vup_patch_info *vup_patches[] = {
 
 #elif defined(NV_GRID_BUILD)
 
+static int vup_gridext = 1;
+module_param_named(gridext, vup_gridext, int, 0400);
+
 #define RM_IOCTL_OFFSET 0xa4d6f0
 static struct vup_patch_item vup_diff_general[] = {
 	{ 0x000B3918, 0x75, 0xEB },
 	{ 0x00839F99, 0x09, 0x00 },
 	{ 0x00A5D3E2, 0x3D, 0x00 },
 };
-VUP_PATCH_DEF(general, 1, 1);
+VUP_PATCH_DEF(general, 1, 1, 1);
 struct vup_patch_info *vup_patches[] = {
 	VUP_PATCH(general),
 };
@@ -284,6 +300,8 @@ static void vup_inject_hooks(u8 *blob)
 	logbuf[0] = '\0';
 	for (i = 0; i < ARRAY_SIZE(vup_hooks); i++) {
 		hi = &vup_hooks[i];
+		if (vup_vgpukvm_opt == 0 && hi->ovgpu)
+			continue;
 		j = strlen(logbuf);
 		size = sizeof(logbuf) - j;
 		arg = *(int *)hi->param->arg;
@@ -323,6 +341,8 @@ static void vup_apply_patches(u8 *base)
 	logbuf[0] = '\0';
 	for (i = 0; i < ARRAY_SIZE(vup_patches); i++) {
 		pi = vup_patches[i];
+		if (vup_vgpukvm_opt == 0 && pi->ovgpu)
+			continue;
 		j = strlen(logbuf);
 		size = sizeof(logbuf) - j;
 		arg = *(int *)pi->param->arg;
@@ -399,11 +419,15 @@ static void vup_patching_done(void)
 	preempt_enable_no_resched();
 }
 
-extern void NV_API_CALL rm_ioctl(void);
-
 void vup_hooks_init(void)
 {
 	u8 *blob = (u8 *)rm_ioctl - RM_IOCTL_OFFSET;
+
+#if defined(NV_VGPU_KVM_BUILD)
+	vup_vgpukvm_opt = nv_vgpu_kvm_enable;
+#elif defined(NV_GRID_BUILD)
+	vup_vgpukvm_opt = vup_gridext;
+#endif
 
 	if (vup_patching_start()) {
 		vup_inject_hooks(blob);
