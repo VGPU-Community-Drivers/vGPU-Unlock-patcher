@@ -258,6 +258,11 @@ static struct vup_patch_item vup_diff_merged[] = {
 };
 VUP_PATCH_DEF(merged, VUP_MERGED_DRIVER, 1, 1);
 
+static struct vup_patch_item vup_diff_fbcon[] = {
+	{ 0x00A54A3B, 0x84, 0x30 },
+};
+VUP_PATCH_DEF(fbcon, VUP_MERGED_DRIVER, 1, 1);
+
 static struct vup_patch_item vup_diff_sunlock[] = {
 	// based on patch from LIL'pingu fixing xid 43 crashes
 	{ 0x00835C8C, 0x10, 0x00 },
@@ -269,6 +274,7 @@ struct vup_patch_info *vup_patches[] = {
 	VUP_PATCH(kunlock),
 	VUP_PATCH(qmode),
 	VUP_PATCH(merged),
+	VUP_PATCH(fbcon),
 	VUP_PATCH(sunlock),
 };
 
