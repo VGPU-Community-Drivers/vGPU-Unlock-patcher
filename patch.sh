@@ -2,12 +2,12 @@
 
 BASEDIR=$(dirname $0)
 
-GNRL="NVIDIA-Linux-x86_64-510.108.03"
-VGPU="NVIDIA-Linux-x86_64-510.108.03-vgpu-kvm"
-GRID="NVIDIA-Linux-x86_64-510.108.03-grid"
-WSYS="NVIDIA-Windows-x86_64-512.15"
+GNRL="NVIDIA-Linux-x86_64-515.43.04"
+VGPU="NVIDIA-Linux-x86_64-515.43.04-vgpu-kvm"
+GRID="NVIDIA-Linux-x86_64-515.57-grid"
+#WSYS="NVIDIA-Windows-x86_64-512.15"
 #WSYS="NVIDIA-Windows-x86_64-516.25"
-#WSYS="NVIDIA-Windows-x86_64-516.59"
+WSYS="NVIDIA-Windows-x86_64-516.59"
 #WSYS="NVIDIA-Windows-x86_64-527.41"
 #WSYS="NVIDIA-Windows-x86_64-528.24"
 #WSYS="NVIDIA-Windows-x86_64-528.89"
@@ -274,6 +274,48 @@ $SETUP_TESTSIGN && {
     makecert -n "CN=Test SPC" -a sha256 -cy end -sky signature -iv wtestsign/test-ca.pvk -ic wtestsign/test-ca.cer \
         -eku 1.3.6.1.5.5.7.3.3 -m 36 -sv wtestsign/test-spc.pvk -p12 wtestsign/wsys-test-cert.pfx P@ss0wrd wtestsign/test-spc.cer &>/dev/null || die "makecert Test SPC failed"
 }
+
+echo "WARNING: this is highly experimental frankenstein setup for vgpu drivers!"
+if [ ! -d "${VGPU}" ]; then
+    VGPUa="NVIDIA-Linux-x86_64-510.47.03-vgpu-kvm"
+    VGPUb="NVIDIA-Linux-x86_64-515.43.04"
+    VGPUc="NVIDIA-Linux-x86_64-525.60.12-vgpu-kvm"
+    va=`echo ${VGPUa} | awk -F- '{print $4}'`
+    vb=`echo ${VGPUb} | awk -F- '{print $4}'`
+    vc=`echo ${VGPUc} | awk -F- '{print $4}'`
+    [ -e ${VGPUa}.run -a -e ${VGPUb}.run -a -e ${VGPUc}.run ] || die "some of ${VGPUa} ${VGPUb} ${VGPUc} run files missing"
+    which patchelf &>/dev/null || die "patchelf not found"
+    REPACK=false extract ${VGPUa}.run
+    extract ${VGPUb}.run
+    REPACK=false extract ${VGPUc}.run
+    set -x
+    rm -rf "${VGPU}"
+    $CP ${VGPUa} ${VGPU}
+    $CP ${VGPUb}/kernel/{common,nvidia,Kbuild,Makefile,conftest.sh} ${VGPU}/kernel/
+    sed -e '/^# VGX_KVM_BUILD/aVGX_KVM_BUILD=1' -i ${VGPU}/kernel/conftest.sh
+    sed -e '/nv_uvm_interface.c/aNVIDIA_SOURCES += nvidia/nv-vgpu-vfio-interface.c' -i ${VGPU}/kernel/nvidia/nvidia-sources.Kbuild
+    grep 'kernel/\(common\|nvidia\)/.*\(nv-dmabuf\|nvkms\)' ${VGPUb}/.manifest >> ${VGPU}/.manifest
+    sed -e "s/${va//./\\.}/${vb}/g" -i ${VGPU}/.manifest
+    for s in libnvidia-ml.so libnvidia-vgpu.so libnvidia-vgxcfg.so
+    do
+        rm ${VGPU}/${s}.${va}
+        $CP ${VGPUc}/${s}.${vc} ${VGPU}/${s}.${vb}
+        sed -e "s/${vc//./\\.}/${vb}/g" -i ${VGPU}/${s}.${vb}
+    done
+    gcc -o ${VGPU}/libvgpucompat.so -shared -fPIC -O2 -s -Wall "$BASEDIR/patches/cvgpu.c"
+    echo "libvgpucompat.so 0755 VGX_LIB NATIVE MODULE:vgpu" >> ${VGPU}/.manifest
+    for s in nvidia-smi nvidia-vgpu-mgr nvidia-vgpud
+    do
+        $CP ${VGPUc}/${s} ${VGPU}/
+        sed -e "s/${vc//./\\.}/${vb}/g" -i ${VGPU}/${s}
+        patchelf --add-needed libvgpucompat.so ${VGPU}/${s}
+    done
+    $CP ${VGPUc}/vgpuConfig.xml ${VGPU}/
+    set +x
+else
+    echo "WARNING: skipping frankenstein setup as ${VGPU} already exists"
+    echo -e "${VGPU}/libvgpucompat.so: $BASEDIR/patches/cvgpu.c\n\tgcc -o \$@ -shared -fPIC -O2 -s -Wall \$<" | make -f - || die "build of libvgpucompat.so failed"
+fi
 
 $DO_VGPU && extract ${VGPU}.run
 $DO_GRID && {
