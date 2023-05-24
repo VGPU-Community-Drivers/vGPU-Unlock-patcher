@@ -199,16 +199,18 @@ die() {
 }
 
 extract() {
-    [ -e ${1} ] || die "package ${1} not found"
     TDIR="${2}"
     if [ -z "${TDIR}" ]; then
         TDIR="${1%.run}"
+    fi
+    if [ -e ${1} ]; then
+        $REPACK && sh ${1} --lsm > ${TARGET}.lsm
     fi
     if [ -d ${TDIR} ]; then
         echo "WARNING: skipping extract of ${1} as it seems already extracted in ${TDIR}"
         return 0
     fi
-    $REPACK && sh ${1} --lsm > ${TARGET}.lsm
+    [ -e ${1} ] || die "package ${1} not found"
     sh ${1} --extract-only --target ${TDIR}
     chmod -R u+w ${TDIR}
 }
