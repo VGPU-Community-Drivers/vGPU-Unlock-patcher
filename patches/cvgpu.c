@@ -4,6 +4,14 @@
 #include <stdio.h>
 #include <dlfcn.h>
 #include <syslog.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stddef.h>
+#include <errno.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 #define REQ_QUERY_GPU 0xC020462A
 
@@ -28,101 +36,207 @@ typedef struct iodata_t {
   void * result; // Pointer initialized prior to call.
   // Pointee initialized to 0 prior to call.
   // Pointee is written by ioctl call.
-  uint32_t unknown_4; // Set to 0x10 for READ_PCI_ID and set to 4 for
+  uint32_t op_size; // Set to 0x10 for READ_PCI_ID and set to 4 for
   // READ_DEV_TYPE prior to call.
   uint32_t status; // Written by ioctl call. See comment below.
 }
 iodata_t;
 
-int ioctl(int fd, int request, void * data) {
+#define BUILD_BUG_ON(condition) ((void)sizeof(char[1 - 2*!!(condition)]))
+
+#define DO_FIXUPS
+static int dbg_trace_level = 1;
+
+static uint32_t ioctl_fixups[][3] = {
+#ifdef DO_FIXUPS
+    { 0x20800102, 0x001f4, 0x001fc },
+    { 0x20801228, 0x001b0, 0x001b8 },
+    { 0x2080a0a4, 0x1073c, 0x10740 },
+    { 0x2080182B, 0x00014, 0x0001c },
+    { 0xa0840101, 0x00104, 0x00100 },
+    { 0x20800A2A, 0x00cc0, 0x00d00 },
+#endif
+    { 0, 0, 0 }
+};
+
+static const char BPATH[] = "/tmp/vgpu-traces";
+
+static void dbgdump(uint32_t *pstatus, int request, uint32_t op_type, uint8_t *buff, uint32_t size, const char *tag)
+{
+    static int idx = -1;
+    int fd;
+    char fname[256];
+    if (idx < 0) {
+        if (idx == -2)
+            return;
+        else if (strcmp(program_invocation_short_name, "nvidia-vgpud") == 0)
+            idx = 0;
+        else if (strcmp(program_invocation_short_name, "nvidia-vgpu-mgr") == 0)
+            idx = 0x100;
+        else {
+            idx = -2;
+            return;
+        }
+        mkdir(BPATH, 0777);
+    }
+    if (tag == NULL)
+        tag = "";
+    if (pstatus == 0)
+        snprintf(fname, sizeof(fname), "%s/%04x-%08x-%08x-%04x-req%s.bin", BPATH, idx, (uint32_t)request, op_type, size, tag);
+    else
+        snprintf(fname, sizeof(fname), "%s/%04x-%08x-%08x-%04x-res-%02x%s.bin", BPATH, idx, (uint32_t)request, op_type, size, *pstatus, tag);
+    fd = creat(fname, 0666);
+    if (fd >= 0) {
+        if (size != write(fd, buff, size))
+            syslog(LOG_INFO, "cvgpu dbgdump-%04x write error: %d\n", idx, errno);
+        close(fd);
+    }
+    if (tag[0] == '\0')
+        idx++;
+}
+
+int ioctl(int fd, int request, void *data)
+{
   static ioctl_t real_ioctl = 0;
+  void *old_buff = NULL;
+  void *new_buff = NULL;
+  iodata_t *iodata;
+  int ret;
+  int i;
+  uint32_t *iofp;
+
   if (!real_ioctl)
     real_ioctl = dlsym(RTLD_NEXT, "ioctl");
 
-  int ret = real_ioctl(fd, request, data);
+  iofp = NULL;
+
+  if ((uint32_t)request == REQ_QUERY_GPU) {
+    iodata = (iodata_t *)data;
+
+    if (dbg_trace_level >= 3)
+        syslog(LOG_INFO, "ioctl_request op_type 0x%x op_size 0x%02x\n", iodata->op_type, iodata->op_size);
+    if (dbg_trace_level >= 4)
+        dbgdump(NULL, request, iodata->op_type, iodata->result, iodata->op_size, NULL);
+
+    for (i = 0; ioctl_fixups[i][0] != 0; i++) {
+        if (iodata->op_type == ioctl_fixups[i][0] && iodata->op_size == ioctl_fixups[i][1]) {
+            if (dbg_trace_level >= 2)
+                syslog(LOG_INFO, "fixing ioctl_request op_type 0x%x op_size 0x%x -> 0x%x\n",
+                    iodata->op_type, iodata->op_size, ioctl_fixups[i][2]);
+            new_buff = malloc(ioctl_fixups[i][2]);
+            if (new_buff != NULL) {
+                iofp = &ioctl_fixups[i][0];
+                old_buff = iodata->result;
+                iodata->result = new_buff;
+                if (iodata->op_size < iofp[2]) {
+                    memcpy(iodata->result, old_buff, iodata->op_size);
+                    memset((uint8_t *)iodata->result + iodata->op_size, 0, iofp[2] - iodata->op_size);
+                } else {
+                    // struct shrinked, very likely that additional fixups are needed
+                    memcpy(iodata->result, old_buff, iofp[2]);
+                    //memset(old_buff + iofp[2], 0, iodata->op_size - iofp[2]);
+                }
+                iodata->op_size = iofp[2];
+            }
+            break;
+        }
+    }
+  }
+
+  ret = real_ioctl(fd, request, data);
 
   // Not a call we care about.
   if ((uint32_t) request != REQ_QUERY_GPU) return ret;
+  iodata = (iodata_t *)data;
+
+  if (dbg_trace_level >= 3 || (iodata->status != 0 && dbg_trace_level >= 2))
+      syslog(iodata->status == 0 ? LOG_INFO : LOG_ERR, "\\_>> op_type 0x%x op_size 0x%x: status=0x%02x\n",
+            iodata->op_type, iodata->op_size, iodata->status);
+
+#ifdef DO_FIXUPS
+  if (iofp != NULL) {
+        if (iodata->op_size == iofp[2])
+            iodata->op_size = iofp[1];
+        else
+            syslog(LOG_ERR, "... ioctl_request op_type 0x%x op_size 0x%x -> 0x%x NOT MATCHING (0x%x)\n",
+                iodata->op_type, iofp[1], iofp[2], iodata->op_size);
+        if (iodata->result == new_buff) {
+            uint32_t size = iofp[1] < iofp[2] ? iofp[1] : iofp[2];
+            iodata->result = old_buff;
+            memcpy(old_buff, new_buff, size);
+        } else
+            syslog(LOG_ERR, "... ioctl_request op_type 0x%x op_size 0x%x -> 0x%x lost new_buff\n",
+                iodata->op_type, iofp[1], iofp[2]);
+        free(new_buff);
+  }
+#if 0
+  if (iodata->op_type == 0x137) {
+    int pos;
+    char buf[256];
+    uint32_t *ver;
+    pos = 0;
+    buf[0] = '\0';
+    for (i = 0; i < iodata->op_size; i++) {
+        pos += snprintf(buf + pos, sizeof(buf) - pos, " %02x", ((uint8_t *)iodata->result)[i]);
+        if (pos >= sizeof(buf) - 1)
+            break;
+    }
+    syslog(LOG_INFO, "RESULT: ioctl_request op_type 0x%x op_size 0x%x:%s\n",
+          iodata->op_type, iodata->op_size, buf);
+    ver = iodata->result;
+    ver[0] = 0x070001;
+    ver[1] = 0x110001;
+    ver[2] = 0x070001;
+    ver[3] = 0x110001;
+    pos = 0;
+    buf[0] = '\0';
+    for (i = 0; i < iodata->op_size; i++) {
+        pos += snprintf(buf + pos, sizeof(buf) - pos, " %02x", ((uint8_t *)iodata->result)[i]);
+        if (pos >= sizeof(buf) - 1)
+            break;
+    }
+    syslog(LOG_INFO, "FIXEDT: ioctl_request op_type 0x%x op_size 0x%x:%s\n",
+          iodata->op_type, iodata->op_size, buf);
+  }
+#endif
+#endif
+
+  if (dbg_trace_level >= 4)
+    dbgdump(&iodata->status, request, iodata->op_type, iodata->result, iodata->op_size, NULL);
 
   // Call failed
   if (ret < 0) return ret;
 
-  iodata_t * iodata = (iodata_t * ) data;
-
   //Driver will try again
   if (iodata -> status == STATUS_TRY_AGAIN) return ret;
 
-  if (iodata -> op_type == OP_READ_PCI_ID) {
-    // Lookup address of the device and subsystem IDs.
-    uint16_t * devid_ptr = (uint16_t * ) iodata -> result + 1;
-    uint16_t * subsysid_ptr = (uint16_t * ) iodata -> result + 3;
-    // Now we replace the device ID with a spoofed value that needs to
-    // be determined such that the spoofed value represents a GPU with
-    // vGPU support that uses the same GPU chip as our actual GPU.
-    uint16_t actual_devid = * devid_ptr;
-    uint16_t spoofed_devid = actual_devid;
-    uint16_t actual_subsysid = * subsysid_ptr;
-    uint16_t spoofed_subsysid = actual_subsysid;
-
-    // Maxwell
-    if (0x1340 <= actual_devid && actual_devid <= 0x13bd ||
-      0x174d <= actual_devid && actual_devid <= 0x179c) {
-      spoofed_devid = 0x13bd; // Tesla M10
-      spoofed_subsysid = 0x1160;
-    }
-    // Maxwell 2.0
-    if (0x13c0 <= actual_devid && actual_devid <= 0x1436 ||
-      0x1617 <= actual_devid && actual_devid <= 0x1667 ||
-      0x17c2 <= actual_devid && actual_devid <= 0x17fd) {
-      spoofed_devid = 0x13f2; // Tesla M60
-    }
-    // Pascal
-    if (0x15f0 <= actual_devid && actual_devid <= 0x15f1 ||
-      0x1b00 <= actual_devid && actual_devid <= 0x1d56 ||
-      0x1725 <= actual_devid && actual_devid <= 0x172f) {
-      spoofed_devid = 0x1b38; // Tesla P40
-    }
-    // GV100 Volta
-    if (actual_devid == 0x1d81 || // TITAN V
-      actual_devid == 0x1dba) { // Quadro GV100 32GB
-      spoofed_devid = 0x1db6; // Tesla V100 32GB PCIE
-    }
-    // Turing
-    if (0x1e02 <= actual_devid && actual_devid <= 0x1ff9 ||
-      0x2182 <= actual_devid && actual_devid <= 0x21d1) {
-      spoofed_devid = 0x1e30; // Quadro RTX 6000
-      spoofed_subsysid = 0x12ba;
-    }
-    // Ampere
-    if (0x2200 <= actual_devid && actual_devid <= 0x2600) {
-      spoofed_devid = 0x2230; // RTX A6000
-    }
-    * devid_ptr = spoofed_devid;
-    * subsysid_ptr = spoofed_subsysid;
-  }
-
-  if (iodata -> op_type == OP_READ_DEV_TYPE) {
-    // Set device type to vGPU capable.
-    uint64_t * dev_type_ptr = (uint64_t * ) iodata -> result;
-    * dev_type_ptr = DEV_TYPE_VGPU_CAPABLE;
-  }
-
   if(iodata->status != STATUS_OK) {
+#ifdef DO_FIXUPS
     // Things seems to work fine even if some operations that fail
     // result in failed assertions. So here we change the status
     // value for these cases to cleanup the logs for nvidia-vgpu-mgr.
-    if(iodata->op_type == 0xA0820104 ||
-      iodata->op_type == 0x90960103 ||
-      iodata->op_type == 0x90960101) {
-        iodata->op_type = STATUS_OK;
-        } else {
-          syslog(LOG_ERR, "op_type: 0x%08X failed, status 0x%X.", iodata->op_type, iodata->status);
-      }
+    if (
+      //iodata->op_type == 0xA0820104 ||
+      iodata->op_type == 0xA082012C ||
+      //iodata->op_type == 0x90960103 ||
+      //iodata->op_type == 0x90960101 ||
+      0)
+    {
+        iodata->status = STATUS_OK;
+    } else
+#endif
+    {
+        if (dbg_trace_level >= 1)
+            syslog(LOG_ERR, "op_type: 0x%08X failed, status 0x%X.", iodata->op_type, iodata->status);
+    }
   }
 
+  // op_type 0x2080014b op_size 0x5: status=0x57
+  // ctrl/ctrl2080/ctrl2080gpu.h:#define NV2080_CTRL_CMD_GPU_GET_INFOROM_OBJECT_VERSION (0x2080014bU)
+  // /* finn: Evaluated from "(FINN_NV20_SUBDEVICE_0_GPU_INTERFACE_ID << 8) | NV2080_CTRL_GPU_GET_INFOROM_OBJECT_VERSION_PARAMS_MESSAGE_ID" */
   // Workaround for some Maxwell cards not supporting reading inforom.
-  if (iodata -> op_type == 0x2080014b && iodata -> status == 0x56) {
-    iodata -> status = 0x57;
+  if (iodata->op_type == 0x2080014b && iodata->status == 0x56) {
+    iodata->status = 0x57;
   }
 
   return ret;
