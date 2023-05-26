@@ -27,6 +27,8 @@ VER_GRID=`echo ${GRID} | awk -F- '{print $4}'`
 
 NVGPLOPTPATCH=false
 FORCEUSENVGPL=false
+ENVYPROBES=false
+
 CP="cp -a"
 
 case `stat -f --format=%T .` in
@@ -85,6 +87,10 @@ do
         --enable-nvidia-gpl-for-experimenting)
             shift
             FORCEUSENVGPL=true
+            ;;
+        --envy-probes)
+            shift
+            ENVYPROBES=true
             ;;
         *)
             echo "Unknown option $1"
@@ -477,6 +483,14 @@ if $DO_VGPU; then
     vcfgclone ${TARGET}/vgpuConfig.xml 0x13BD 0x1160 0x139A 0x0000	# GTX 950M -> Tesla M10
     echo
 fi
+
+$ENVYPROBES && {
+    applypatch ${TARGET} envy_probes-ioctl-hooks-from-mbuchel.patch
+    sed -e '/^NVIDIA_CFLAGS += .*BIT_MACROS$/aNVIDIA_CFLAGS += -DENVY_LINUX' -i ${TARGET}/kernel/nvidia/nvidia.Kbuild
+    echo 'NVIDIA_SOURCES += unlock/envy_probes.c' >> ${TARGET}/kernel/nvidia/nvidia-sources.Kbuild
+    echo "kernel/common/inc/envy_probes.h 0644 KERNEL_MODULE_SRC INHERIT_PATH_DEPTH:1 MODULE:vgpu" >>${TARGET}/.manifest
+    echo "kernel/unlock/envy_probes.c 0644 KERNEL_MODULE_SRC INHERIT_PATH_DEPTH:1 MODULE:vgpu" >>${TARGET}/.manifest
+}
 
 if $REPACK; then
     REPACK_OPTS="${REPACK_OPTS:---silent}"
