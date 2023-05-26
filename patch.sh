@@ -27,6 +27,7 @@ VER_GRID=`echo ${GRID} | awk -F- '{print $4}'`
 NVGPLOPTPATCH=false
 FORCEUSENVGPL=false
 TDMABUFEXPORT=false
+ENVYPROBES=false
 
 CP="cp -a"
 
@@ -95,6 +96,10 @@ do
         --test-dmabuf-export)
             shift
             TDMABUFEXPORT=true
+            ;;
+        --envy-probes)
+            shift
+            ENVYPROBES=true
             ;;
         *)
             echo "Unknown option $1"
@@ -502,6 +507,14 @@ if $DO_LK6P; then
         applypatch ${TARGET} vgpu-kvm-kernel-6.3-compat-drmuvm.patch
     fi
 fi
+
+$ENVYPROBES && {
+    applypatch ${TARGET} envy_probes-ioctl-hooks-from-mbuchel.patch
+    sed -e '/^NVIDIA_CFLAGS += .*BIT_MACROS$/aNVIDIA_CFLAGS += -DENVY_LINUX' -i ${TARGET}/kernel/nvidia/nvidia.Kbuild
+    echo 'NVIDIA_SOURCES += unlock/envy_probes.c' >> ${TARGET}/kernel/nvidia/nvidia-sources.Kbuild
+    echo "kernel/common/inc/envy_probes.h 0644 KERNEL_MODULE_SRC INHERIT_PATH_DEPTH:1 MODULE:vgpu" >>${TARGET}/.manifest
+    echo "kernel/unlock/envy_probes.c 0644 KERNEL_MODULE_SRC INHERIT_PATH_DEPTH:1 MODULE:vgpu" >>${TARGET}/.manifest
+}
 
 if $REPACK; then
     REPACK_OPTS="${REPACK_OPTS:---silent}"
