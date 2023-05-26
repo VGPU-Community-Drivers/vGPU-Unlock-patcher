@@ -1,0 +1,341 @@
+From 771c813bb1928f693120ca90f6016e50995027e5 Mon Sep 17 00:00:00 2001
+From: snowman <snowman@localhost.localdomain>
+Subject: [PATCH] envy_probes ioctl hooks from mbuchel
+
+this patch adds envy probes nvidia ioctl api to activate kprobes
+from userspace for simple nvidia driver debugging
+
+original patch slightly modified to better fit the patcher concept
+---
+ kernel/common/inc/envy_probes.h |  46 ++++++++
+ kernel/nvidia/nv-frontend.c     |   3 +
+ kernel/nvidia/nv.c              |  38 +++++++
+ kernel/unlock/envy_probes.c     | 191 ++++++++++++++++++++++++++++++++
+ 4 files changed, 278 insertions(+)
+ create mode 100644 kernel/common/inc/envy_probes.h
+ create mode 100644 kernel/unlock/envy_probes.c
+
+diff --git a/kernel/common/inc/envy_probes.h b/kernel/common/inc/envy_probes.h
+new file mode 100644
+index 0000000..2de66e7
+--- /dev/null
++++ b/kernel/common/inc/envy_probes.h
+@@ -0,0 +1,46 @@
++#ifndef ENVY_H
++#define ENVY_H
++
++#ifdef ENVY_LINUX
++#include <linux/types.h>
++#else
++#include <stdint.h>
++#endif
++
++struct envy_probe {
++    char function[128];
++    uint32_t offset;
++    uint8_t registers[17];
++};
++
++#define ENVY_PROBE_REG 0xDEADBEEF
++#define ENVY_PROBE_UNREG 0xE719DEAD
++#define ENVY_PROBE_DUMP_START 0xBEEFDEAD
++#define ENVY_PROBE_DUMP_STOP 0xDEBEEFED
++
++#define REG_NON 0
++#define REG_RAX 1
++#define REG_RBX 2
++#define REG_RCX 3
++#define REG_RDX 4
++#define REG_RSI 5
++#define REG_RDI 6
++#define REG_RBP 7
++#define REG_RSP 8
++#define REG_R8  9
++#define REG_R9  10
++#define REG_R10 11
++#define REG_R11 12
++#define REG_R12 13
++#define REG_R13 14
++#define REG_R14 15
++#define REG_R15 16
++#define REG_INV 0xFF
++
++#ifdef ENVY_LINUX
++void envy_probes_dump(const uint8_t d);
++int envy_probes_open(struct envy_probe *ptr);
++void envy_probes_close(void);
++#endif
++
++#endif
+diff --git a/kernel/nvidia/nv-frontend.c b/kernel/nvidia/nv-frontend.c
+index 33b2d12..7312fc3 100644
+--- a/kernel/nvidia/nv-frontend.c
++++ b/kernel/nvidia/nv-frontend.c
+@@ -417,8 +417,11 @@ static int __init nvidia_frontend_init_module(void)
+     return status;
+ }
+ 
++extern void envy_probes_close(void);
++
+ static void __exit nvidia_frontend_exit_module(void)
+ {
++    envy_probes_close();
+     vup_hooks_exit();
+ 
+     /*
+diff --git a/kernel/nvidia/nv.c b/kernel/nvidia/nv.c
+index 20dd322..d1a2e61 100644
+--- a/kernel/nvidia/nv.c
++++ b/kernel/nvidia/nv.c
+@@ -80,6 +80,8 @@
+ 
+ #include <linux/ioport.h>
+ 
++#include <envy_probes.h>
++
+ #include "conftest/patches.h"
+ 
+ #define RM_THRESHOLD_TOTAL_IRQ_COUNT     100000
+@@ -2367,6 +2369,42 @@ unlock:
+         }
+ 
+         default:
++            if (arg_cmd == 0x2A && arg_copy != NULL) {
++                uint8_t exec = 1;
++                NVOS54_PARAMETERS *cmd = (NVOS54_PARAMETERS*) arg_copy;
++                struct envy_probe probe = {};
++                switch (cmd->cmd) {
++                    case ENVY_PROBE_UNREG:
++                        envy_probes_close();
++                        exec = 0;
++                        status = 0;
++                        break;
++                    case ENVY_PROBE_REG:
++                        exec = 0;
++                        if (NV_COPY_FROM_USER(&probe, cmd->params, sizeof(struct envy_probe))) {
++                            status = -EFAULT;
++                            break;
++                        }
++                        os_dbg_set_level(0);
++                        nv_printf(NV_DBG_INFO, "function: %s\noffset: 0x%X\n", probe.function, probe.offset);
++                        status = envy_probes_open(&probe);
++                        nv_printf(NV_DBG_INFO, "Added probe\n");
++                        break;
++                    case ENVY_PROBE_DUMP_START:
++                        envy_probes_dump(1);
++                        exec = 0;
++                        break;
++                    case ENVY_PROBE_DUMP_STOP:
++                        envy_probes_dump(0);
++                        exec = 0;
++                        break;
++                    default:
++                        break;
++                }
++                if (!exec)
++                    break;
++            }
++
+             rmStatus = rm_ioctl(sp, nv, &nvlfp->nvfp, arg_cmd, arg_copy, arg_size);
+ 
+             // strange workaround for cards with inforom error, taken from here:
+diff --git a/kernel/unlock/envy_probes.c b/kernel/unlock/envy_probes.c
+new file mode 100644
+index 0000000..ce4b90c
+--- /dev/null
++++ b/kernel/unlock/envy_probes.c
+@@ -0,0 +1,191 @@
++#include <envy_probes.h>
++
++#include <linux/kprobes.h>
++#include <nvmisc.h>
++#include <nvtypes.h>
++#include <nvstatus.h>
++#include <nvstatuscodes.h>
++#include <nv.h>
++#include <os-interface.h>
++
++#define PRINT_SYM(f, s) nv_printf(NV_DBG_INFO, "Jump %s\t%pSR\n", f, s)
++
++static struct kprobe kp;
++static struct kretprobe kret;
++static struct envy_probe probe = {};
++static uint8_t dump = 0;
++static uint8_t init = 0;
++
++/*
++ * print_symbol - Prints the symbolic representation at a specific register.
++ * @regs - Registers to print out.
++ * @type - Which register to convert.
++ */
++void print_symbol(const struct pt_regs* regs, int type)
++{
++    switch (type) {
++        case REG_RAX:
++            PRINT_SYM("RAX", regs->ax);
++            break;
++        case REG_RBX:
++            PRINT_SYM("RBX", regs->bx);
++            break;
++        case REG_RCX:
++            PRINT_SYM("RCX", regs->cx);
++            break;
++        case REG_RDX:
++            PRINT_SYM("RDX", regs->dx);
++            break;
++        case REG_RSI:
++            PRINT_SYM("RSI", regs->si);
++            break;
++        case REG_RDI:
++            PRINT_SYM("RDI", regs->di);
++            break;
++        case REG_RBP:
++            PRINT_SYM("RBP", regs->bp);
++            break;
++        case REG_RSP:
++            PRINT_SYM("RSP", regs->sp);
++            break;
++        case REG_R8:
++            PRINT_SYM("R8", regs->r8);
++            break;
++        case REG_R9:
++            PRINT_SYM("R9", regs->r9);
++            break;
++        case REG_R10:
++            PRINT_SYM("R10", regs->r10);
++            break;
++        case REG_R11:
++            PRINT_SYM("R11", regs->r11);
++            break;
++        case REG_R12:
++            PRINT_SYM("R12", regs->r12);
++            break;
++        case REG_R13:
++            PRINT_SYM("R13", regs->r13);
++            break;
++        case REG_R14:
++            PRINT_SYM("R14", regs->r14);
++            break;
++        case REG_R15:
++            PRINT_SYM("R15", regs->r15);
++            break;
++        default:
++            break;
++    }
++}
++
++void dump_cpu(struct pt_regs *regs)
++{
++    nv_printf(
++        NV_DBG_INFO,
++        "EIP is at %pSR\n"
++        "rax: 0x%.8X\trbx: 0x%.8X\trcx: 0x%.8X\n"
++        "rdx: 0x%.8X\trsi: 0x%.8X\trdi: 0x%.8X\n"
++        "rbp: 0x%.8X\trsp: 0x%.8X\tr08: 0x%.8X\n"
++        "r09: 0x%.8X\tr10: 0x%.8X\tr11: 0x%.8X\n"
++        "r12: 0x%.8X\tr13: 0x%.8X\tr14: 0x%.8X\n"
++        "r15: 0x%.8X\n",
++        regs->ip,
++        regs->ax, regs->bx, regs->cx,
++        regs->dx, regs->si, regs->di,
++        regs->bp, regs->sp, regs->r8,
++        regs->r9, regs->r10, regs->r11,
++        regs->r12, regs->r13, regs->r14,
++        regs->r15
++    );
++}
++
++int kprobe_pre(struct kprobe *p, struct pt_regs *regs)
++{
++    if (dump)
++        os_dbg_set_level(0x0);
++    return 0;
++}
++
++void kprobe_post(struct kprobe *p, struct pt_regs * regs, unsigned long flags)
++{
++    uint32_t i = 0;
++
++    if (dump) {
++        dump_cpu(regs);
++
++        for (i = 0; i < 17 && probe.registers[i] != REG_INV; ++i)
++            print_symbol(regs, probe.registers[i]);
++
++        os_dbg_set_level(0xffffffff);
++    }
++}
++
++int kret_ret(struct kretprobe_instance *ri, struct pt_regs *regs)
++{
++    uint64_t ret_val = regs_return_value(regs);
++
++    if (dump) {
++        os_dbg_set_level(0x0);
++
++        nv_printf(NV_DBG_INFO, "Returning: 0x%.8X\n", ret_val);
++        dump_cpu(regs);
++
++        os_dbg_set_level(0xffffffff);
++    }
++
++    return 0;
++}
++
++void envy_probes_dump(const uint8_t d)
++{
++    dump = d;
++}
++
++int envy_probes_open(struct envy_probe *ptr)
++{
++    memcpy(&probe, ptr, sizeof(struct envy_probe));
++    memset(&kp, 0, sizeof(kp));
++    memset(&kret, 0, sizeof(kret));
++
++    os_dbg_set_level(0x0);
++    kp.pre_handler = kprobe_pre;
++    kp.post_handler = kprobe_post;
++
++    kp.symbol_name = probe.function;
++    kp.offset = probe.offset;
++
++    kret.handler = kret_ret;
++    kret.kp.symbol_name = kp.symbol_name;
++
++    nv_printf(NV_DBG_INFO, "Adding kprobe to %s at offset 0x%X\n",
++              probe.function, probe.offset);
++
++    if (register_kprobe(&kp) < 0) {
++        nv_printf(NV_DBG_INFO, "Failed to add kprobe: %s\n", probe.function);
++        return -1;
++    }
++
++    nv_printf(NV_DBG_INFO, "Adding kretprobe to %s\n", probe.function);
++
++    if (register_kretprobe(&kret) < 0) {
++        unregister_kprobe(&kp);
++        return -1;
++    }
++
++    os_dbg_set_level(0xffffffff);
++
++    init = 1;
++
++    return 0;
++}
++
++void envy_probes_close(void)
++{
++    if (init) {
++        os_dbg_set_level(0x0);
++        nv_printf(NV_DBG_INFO, "Removing kprobes: %s\n", probe.function);
++        unregister_kprobe(&kp);
++        unregister_kretprobe(&kret);
++        os_dbg_set_level(0xffffffff);
++        init = 0;
++    }
++}
+-- 
+2.30.2
+
