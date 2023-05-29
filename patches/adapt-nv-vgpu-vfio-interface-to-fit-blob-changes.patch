@@ -1,0 +1,41 @@
+From: snowman <snowman@localhost.localdomain>
+Subject: [PATCH] adapt nv-vgpu-vfio-interface to fit blob changes
+
+not sure what the additional bool arg is used for
+---
+ kernel/nvidia/nv-vgpu-vfio-interface.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/kernel/nvidia/nv-vgpu-vfio-interface.c b/kernel/nvidia/nv-vgpu-vfio-interface.c
+index cb082f8..941dbf1 100644
+--- a/kernel/nvidia/nv-vgpu-vfio-interface.c
++++ b/kernel/nvidia/nv-vgpu-vfio-interface.c
+@@ -51,6 +51,7 @@ static NV_STATUS nvidia_vgpu_create(struct pci_dev *pci_dev, const NvU8 *uuid,
+     NV_STATUS status = NV_OK;
+     nvidia_stack_t *sp = NULL;
+     nv_state_t *nv;
++    NvBool flag = 0;
+     nv_linux_state_t *nvl = pci_get_drvdata(pci_dev);
+ 
+     if (!nvl || (nvl->pci_dev != pci_dev))
+@@ -62,7 +63,7 @@ static NV_STATUS nvidia_vgpu_create(struct pci_dev *pci_dev, const NvU8 *uuid,
+         return NV_ERR_NO_MEMORY;
+ 
+     status = nv_vgpu_create_request(sp, nv, uuid, vgpu_type_id,
+-                                    vgpu_id, gpu_pci_bdf);
++                                    vgpu_id, gpu_pci_bdf, &flag);
+ 
+     nv_kmem_cache_free_stack(sp);
+ 
+@@ -262,7 +263,7 @@ NV_STATUS nvidia_vgpu_vfio_set_ops(vgpu_vfio_ops_t *ops)
+         if (nv_kmem_cache_alloc_stack(&sp) != 0)
+             return NV_ERR_NO_MEMORY;
+ 
+-        rm_vgpu_vfio_set_driver_vm(sp, ops->is_driver_vm);
++        //rm_vgpu_vfio_set_driver_vm(sp, ops->is_driver_vm);
+ 
+         nv_kmem_cache_free_stack(sp);
+     }
+-- 
+2.30.2
+
