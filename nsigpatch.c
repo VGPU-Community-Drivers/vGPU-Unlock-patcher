@@ -30,6 +30,7 @@ static const uint8_t patch_new[] = { 0x31, 0xc0, 0xff, 0xc8, 0x48, 0x85, 0xd2, 0
 static const uint8_t push_offs[] = { 0x68 };
 static const int patch32_old[]  = { 0x55, 0x8B, 0xEC, 0x81, 0xEC,   -1,   -1,   -1,   -1, 0xa1,   -1,   -1,   -1,   -1, 0x33, 0xc5};
 static const int patch32_old2[] = { 0x55, 0x8B, 0xEC, 0x81, 0xEC,   -1,   -1,   -1,   -1, 0x53 };
+static const int patch32_old3[] = { 0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF8, 0x81, 0xEC,   -1,   -1,   -1,   -1, 0xA1 };
 static const int patch32_new[]  = { 0x31, 0xC0, 0x48, 0x85, 0xD2, 0x74, 0x02, 0x89, 0x02, 0xC3 };
 static const int patch32_new2[] = { 0x8B, 0x44, 0x24, 0x08, 0x85, 0xc0, 0x75, 0x06, 0xeb, 0x08,   -1,   -1,   -1,   -1, 0x89, 0x00, 0x31, 0xc0, 0x48, 0xc2, 0x08, 0x00 };
 
@@ -273,6 +274,8 @@ int main(int argc, char **argv)
             cp = find_entry(file, p1, patch32_old, sizeof(patch32_old) / sizeof(patch32_old[0]));
             if (cp == NULL)
                 cp = find_entry(file, p1, patch32_old2, sizeof(patch32_old2) / sizeof(patch32_old2[0]));
+            if (cp == NULL)
+                cp = find_entry(file, p1, patch32_old3, sizeof(patch32_old3) / sizeof(patch32_old3[0]));
 
             if (cp != NULL) {
                 const int *patch32 = patch32_new;
