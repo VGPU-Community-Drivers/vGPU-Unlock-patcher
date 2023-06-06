@@ -2,16 +2,17 @@
 
 BASEDIR=$(dirname $0)
 
-GNRL="NVIDIA-Linux-x86_64-530.41.03"
-VGPU="NVIDIA-Linux-x86_64-530.41.03-vgpu-kvm"
-GRID="NVIDIA-Linux-x86_64-530.41.03-grid"
+GNRL="NVIDIA-Linux-x86_64-535.43.02"
+VGPU="NVIDIA-Linux-x86_64-535.43.02-vgpu-kvm"
+GRID="NVIDIA-Linux-x86_64-535.43.02-grid"
 #WSYS="NVIDIA-Windows-x86_64-512.15"
 #WSYS="NVIDIA-Windows-x86_64-516.25"
 #WSYS="NVIDIA-Windows-x86_64-516.59"
 #WSYS="NVIDIA-Windows-x86_64-527.41"
 #WSYS="NVIDIA-Windows-x86_64-528.24"
 #WSYS="NVIDIA-Windows-x86_64-528.89"
-WSYS="NVIDIA-Windows-x86_64-531.41"
+#WSYS="NVIDIA-Windows-x86_64-531.41"
+WSYS="NVIDIA-Windows-x86_64-535.98"
 
 KLOGT=true
 TESTSIGN=true
@@ -229,6 +230,7 @@ extract() {
     fi
     [ -e ${1} ] || die "package ${1} not found"
     sh ${1} --extract-only --target ${TDIR}
+    echo >> ${TDIR}/kernel/nvidia/nvidia.Kbuild
     chmod -R u+w ${TDIR}
 }
 
@@ -295,7 +297,7 @@ $SETUP_TESTSIGN && {
 echo "WARNING: this is highly experimental frankenstein setup for vgpu drivers!"
 if [ ! -d "${VGPU}" ]; then
     VGPUa="NVIDIA-Linux-x86_64-525.105.14-vgpu-kvm"
-    VGPUb="NVIDIA-Linux-x86_64-530.41.03"
+    VGPUb="NVIDIA-Linux-x86_64-535.43.02"
     va=`echo ${VGPUa} | awk -F- '{print $4}'`
     vb=`echo ${VGPUb} | awk -F- '{print $4}'`
     [ -e ${VGPUa}.run -a -e ${VGPUb}.run ] || die "some of ${VGPUa} ${VGPUb} run files missing"
@@ -310,6 +312,7 @@ if [ ! -d "${VGPU}" ]; then
     rm ${VGPU}/libnvidia-ml.so.${va}
     $CP ${VGPUb}/{nvidia-smi,libnvidia-ml.so.${vb}} ${VGPU}/
     sed -e '/^# VGX_KVM_BUILD/aVGX_KVM_BUILD=1' -i ${VGPU}/kernel/conftest.sh
+    sed -e '/^NV_CONFTEST_TYPE_COMPILE_TESTS/ s/\(+= mdev_parent\)$/\1_ops/' -i ${VGPU}/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.Kbuild
     sed -e '/nv_uvm_interface.c/aNVIDIA_SOURCES += nvidia/nv-vgpu-vfio-interface.c' -i ${VGPU}/kernel/nvidia/nvidia-sources.Kbuild
     grep 'kernel/\(common\|nvidia\)/.*\(nv-dmabuf\|nvkms\)' ${VGPUb}/.manifest >> ${VGPU}/.manifest
     sed -e "s/${va//./\\.}/${vb}/g" -i ${VGPU}/.manifest
@@ -362,33 +365,35 @@ if $DO_WSYS && [ ! -e "${WSYS}/nvlddmkm.sys" ]; then
     which 7z &>/dev/null || die "install p7zip-full for 7z tool (http://p7zip.sourceforge.net/)"
     which msexpand &>/dev/null || die "install mscompress (https://github.com/stapelberg/mscompress)"
     rm -rf ${WSYS}
-    SYS_SRC=( "Display.Driver/nvlddmkm.sy_" )
+    SYS_SRC=( "Display.Driver/nvlddmkm.sy*" )
     if $DO_LIBS; then
         SYS_SRC+=(
-            "Display.Driver/nvd3dum.dl_"
-            "Display.Driver/nvd3dumx.dl_"
-            "Display.Driver/nvldumd.dl_"
-            "Display.Driver/nvldumdx.dl_"
-            "Display.Driver/nvoglv32.dl_"
-            "Display.Driver/nvoglv64.dl_"
-            "Display.Driver/nvwgf2um.dl_"
-            "Display.Driver/nvwgf2umx.dl_"
+            "Display.Driver/nvd3dum.dl*"
+            "Display.Driver/nvd3dumx.dl*"
+            "Display.Driver/nvldumd.dl*"
+            "Display.Driver/nvldumdx.dl*"
+            "Display.Driver/nvoglv32.dl*"
+            "Display.Driver/nvoglv64.dl*"
+            "Display.Driver/nvwgf2um.dl*"
+            "Display.Driver/nvwgf2umx.dl*"
         )
     fi
     echo "extracting the driver installer, please wait..."
     7z x -o${WSYS} "$NV_WIN_DRV_INSTALLER" ${SYS_SRC[*]} &>/dev/null
+    pushd ${WSYS} &>/dev/null
     for i in ${SYS_SRC[*]}
     do
         if [ "${i%_}" != "${i}" ]; then
             t=`basename "$i" | sed -e 's/sy_$/sys/' -e 's/dl_/dll/'`
             echo "$i -> $t"
-            msexpand < ${WSYS}/$i > ${WSYS}/$t
+            msexpand < $i > $t
         else
             t=`basename "$i"`
             echo "$i -> $t"
-            mv ${WSYS}/$i ${WSYS}
+            mv $i .
         fi
     done
+    popd &>/dev/null
     rm -rf ${WSYS}/{Display.Driver,GFExperience}
     echo "extracted needed stuff from the driver installer"
 fi
@@ -402,7 +407,7 @@ if $DO_MRGD; then
     $CP ${GRID}/. ${SOURCE}
     for i in LICENSE kernel/nvidia/nvidia-sources.Kbuild init-scripts/{post-install,pre-uninstall} nvidia-bug-report.sh kernel/nvidia/nv-kernel.o_binary
     do
-        $CP ${VGPU}/$i ${SOURCE}/$i
+        $CP -f ${VGPU}/$i ${SOURCE}/$i
     done
     sed -e '/^# VGX_KVM_BUILD/aVGX_KVM_BUILD=1' -i ${SOURCE}/kernel/conftest.sh
     sed -e 's/^\(nvidia .*nvidia-drm.*\)/\1 nvidia-vgpu-vfio/' -i ${SOURCE}/.manifest
