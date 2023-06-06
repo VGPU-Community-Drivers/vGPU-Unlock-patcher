@@ -12,6 +12,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <asm/ioctl.h>
 
 #define REQ_QUERY_GPU 0xC020462A
 
@@ -44,17 +45,124 @@ iodata_t;
 
 #define BUILD_BUG_ON(condition) ((void)sizeof(char[1 - 2*!!(condition)]))
 
+/*
+ * https://github.com/NVIDIA/open-gpu-kernel-modules/kernel-open/common/inc/nv-ioctl-numa.h
+ */
+
+#if !defined(__aligned)
+#define __aligned(n) __attribute__((aligned(n)))
+#endif
+#define NV_IOCTL_MAGIC      'F'
+#define NV_IOCTL_BASE       200
+#define NV_ESC_NUMA_INFO         (NV_IOCTL_BASE + 15)
+#define NV_IOCTL_NUMA_INFO_MAX_OFFLINE_ADDRESSES 64
+typedef struct offline_addresses
+{
+    uint64_t addresses[NV_IOCTL_NUMA_INFO_MAX_OFFLINE_ADDRESSES] __aligned(8);
+    uint32_t numEntries;
+} nv_offline_addresses_t;
+/* per-device NUMA memory info as assigned by the system */
+typedef struct nv_ioctl_numa_info
+{
+    int32_t  nid;
+    int32_t  status;
+    uint64_t memblock_size __aligned(8);
+    uint64_t numa_mem_addr __aligned(8);
+    uint64_t numa_mem_size __aligned(8);
+    nv_offline_addresses_t offline_addresses __aligned(8);
+} nv_ioctl_numa_info_t;
+typedef struct nv_ioctl_numa_info_535
+{
+    int32_t  nid;
+    int32_t  status;
+    uint64_t memblock_size __aligned(8);
+    uint64_t numa_mem_addr __aligned(8);
+    uint64_t numa_mem_size __aligned(8);
+    uint8_t  use_auto_online;             // <<-- !! git diff 515.43.04..535.43.02 -- kernel-open/common/inc/nv-ioctl-numa.h
+    nv_offline_addresses_t offline_addresses __aligned(8);
+} nv_ioctl_numa_info_t_535;
+
+
+/*
+ * https://github.com/NVIDIA/open-gpu-kernel-modules/src/common/sdk/nvidia/inc/nvtypes.h
+ */
+typedef uint32_t           NvU32;
+typedef uint32_t           NvV32;
+typedef void*              NvP64;
+typedef struct { NvU32 val; } NvHandle;
+#define NV_ALIGN_BYTES(size) __attribute__ ((aligned (size)))
+
+
+/*
+ * https://github.com/NVIDIA/open-gpu-kernel-modules/src/nvidia/arch/nvalloc/unix/include/nv_escape.h
+ */
+#define NV_ESC_RM_ALLOC                             0x2B
+
+/*
+ * https://github.com/NVIDIA/open-gpu-kernel-modules/src/common/sdk/nvidia/inc/nvos.h
+ */
+/* parameters */
+typedef struct
+{
+    NvHandle hRoot;
+    NvHandle hObjectParent;
+    NvHandle hObjectNew;
+    NvV32    hClass;
+    NvP64    pAllocParms NV_ALIGN_BYTES(8);
+    NvV32    status;
+} NVOS21_PARAMETERS;
+
+typedef struct
+{
+    NvHandle hRoot;
+    NvHandle hObjectParent;
+    NvHandle hObjectNew;
+    NvV32    hClass;
+    NvP64    pAllocParms NV_ALIGN_BYTES(8);
+    NvU32    paramsSize;  // <<-- !! git diff 530.30.02..535.43.02 -- src/common/sdk/nvidia/inc/nvos.h
+    NvV32    status;
+} NVOS21_PARAMETERS_535;
+
+/* New struct with rights requested */
+typedef struct
+{
+    NvHandle hRoot;                               // [IN] client handle
+    NvHandle hObjectParent;                       // [IN] parent handle of new object
+    NvHandle hObjectNew;                          // [INOUT] new object handle, 0 to generate
+    NvV32    hClass;                              // [in] class num of new object
+    NvP64    pAllocParms NV_ALIGN_BYTES(8);       // [IN] class-specific alloc parameters
+    NvP64    pRightsRequested NV_ALIGN_BYTES(8);  // [IN] RS_ACCESS_MASK to request rights, or NULL
+    NvU32    flags;                               // [IN] flags for FINN serialization
+    NvV32    status;                              // [OUT] status
+} NVOS64_PARAMETERS;
+
+typedef struct
+{
+    NvHandle hRoot;                               // [IN] client handle
+    NvHandle hObjectParent;                       // [IN] parent handle of new object
+    NvHandle hObjectNew;                          // [INOUT] new object handle, 0 to generate
+    NvV32    hClass;                              // [in] class num of new object
+    NvP64    pAllocParms NV_ALIGN_BYTES(8);       // [IN] class-specific alloc parameters
+    NvP64    pRightsRequested NV_ALIGN_BYTES(8);  // [IN] RS_ACCESS_MASK to request rights, or NULL
+    NvU32    paramsSize;                          // [IN] Size of alloc params  // <<-- !! git diff 530.30.02..535.43.02 -- src/common/sdk/nvidia/inc/nvos.h
+    NvU32    flags;                               // [IN] flags for FINN serialization
+    NvV32    status;                              // [OUT] status
+} NVOS64_PARAMETERS_535;
+
+
+
 #define DO_FIXUPS
-static int dbg_trace_level = 1;
+static int dbg_trace_level = 0;
 
 static uint32_t ioctl_fixups[][3] = {
 #ifdef DO_FIXUPS
-    { 0x20800102, 0x001f4, 0x001fc },
-    { 0x20801228, 0x001b0, 0x001b8 },
+    { 0x20800102, 0x001f4, 0x00204 },
+    { 0x20801228, 0x001b0, 0x001c0 },
     { 0x2080a0a4, 0x1073c, 0x10740 },
     { 0x2080182B, 0x00014, 0x0001c },
     { 0xa0840101, 0x00104, 0x00100 },
-    { 0x20800A2A, 0x00cc0, 0x00d00 },
+    { 0x20800A2A, 0x00cc0, 0x00d40 },
+    { 0x20800188, 0x00004, 0x00008 },
 #endif
     { 0, 0, 0 }
 };
@@ -109,6 +217,86 @@ int ioctl(int fd, int request, void *data)
     real_ioctl = dlsym(RTLD_NEXT, "ioctl");
 
   iofp = NULL;
+
+  if ((uint32_t)request == _IOWR(NV_IOCTL_MAGIC, NV_ESC_NUMA_INFO, nv_ioctl_numa_info_t)) {
+      nv_ioctl_numa_info_t_535 *ninfo_new;
+      nv_ioctl_numa_info_t *ninfo_old = data;
+      ninfo_new = malloc(sizeof(nv_ioctl_numa_info_t_535));
+      if (ninfo_new != NULL) {
+          ninfo_new->nid = ninfo_old->nid;
+          ninfo_new->status = ninfo_old->status;
+          ninfo_new->memblock_size = ninfo_old->memblock_size;
+          ninfo_new->numa_mem_addr = ninfo_old->numa_mem_addr;
+          ninfo_new->numa_mem_size = ninfo_old->numa_mem_size;
+          ninfo_new->use_auto_online = 0;
+          memcpy(&ninfo_new->offline_addresses, &ninfo_old->offline_addresses, sizeof(nv_offline_addresses_t));
+
+          ret = real_ioctl(fd, _IOWR(NV_IOCTL_MAGIC, NV_ESC_NUMA_INFO, nv_ioctl_numa_info_t_535), ninfo_new);
+
+          ninfo_old->nid = ninfo_new->nid;
+          ninfo_old->status = ninfo_new->status;
+          ninfo_old->memblock_size = ninfo_new->memblock_size;
+          ninfo_old->numa_mem_addr = ninfo_new->numa_mem_addr;
+          ninfo_old->numa_mem_size = ninfo_new->numa_mem_size;
+          memcpy(&ninfo_old->offline_addresses, &ninfo_new->offline_addresses, sizeof(nv_offline_addresses_t));
+          free(ninfo_new);
+          return ret;
+      }
+  }
+
+  if ((uint32_t)request == _IOWR(NV_IOCTL_MAGIC, NV_ESC_RM_ALLOC, NVOS21_PARAMETERS)) {
+      NVOS21_PARAMETERS_535 *np_new;
+      NVOS21_PARAMETERS *np_old = data;
+      np_new = malloc(sizeof(NVOS21_PARAMETERS_535));
+      if (np_new != NULL) {
+          np_new->hRoot = np_old->hRoot;
+          np_new->hObjectParent = np_old->hObjectParent;
+          np_new->hObjectNew = np_old->hObjectNew;
+          np_new->hClass = np_old->hClass;
+          np_new->pAllocParms = np_old->pAllocParms;
+          np_new->paramsSize = 0;
+          np_new->status = np_old->status;
+
+          ret = real_ioctl(fd, _IOWR(NV_IOCTL_MAGIC, NV_ESC_RM_ALLOC, NVOS21_PARAMETERS_535), np_new);
+
+          np_old->hRoot = np_new->hRoot;
+          np_old->hObjectParent = np_new->hObjectParent;
+          np_old->hObjectNew = np_new->hObjectNew;
+          np_old->hClass = np_new->hClass;
+          np_old->pAllocParms = np_new->pAllocParms;
+          np_old->status = np_new->status;
+          return ret;
+      }
+  }
+
+  if ((uint32_t)request == _IOWR(NV_IOCTL_MAGIC, NV_ESC_RM_ALLOC, NVOS64_PARAMETERS)) {
+      NVOS64_PARAMETERS_535 *np_new;
+      NVOS64_PARAMETERS *np_old = data;
+      np_new = malloc(sizeof(NVOS64_PARAMETERS_535));
+      if (np_new != NULL) {
+          np_new->hRoot = np_old->hRoot;
+          np_new->hObjectParent = np_old->hObjectParent;
+          np_new->hObjectNew = np_old->hObjectNew;
+          np_new->hClass = np_old->hClass;
+          np_new->pAllocParms = np_old->pAllocParms;
+          np_new->pRightsRequested = np_old->pRightsRequested;
+          np_new->paramsSize = 0;
+          np_new->flags = np_old->flags;
+          np_new->status = np_old->status;
+
+          ret = real_ioctl(fd, _IOWR(NV_IOCTL_MAGIC, NV_ESC_RM_ALLOC, NVOS64_PARAMETERS_535), np_new);
+
+          np_old->hRoot = np_new->hRoot;
+          np_old->hObjectParent = np_new->hObjectParent;
+          np_old->hObjectNew = np_new->hObjectNew;
+          np_old->hClass = np_new->hClass;
+          np_old->pAllocParms = np_new->pAllocParms;
+          np_old->pRightsRequested = np_new->pRightsRequested;
+          np_old->flags = np_new->flags;
+          np_old->status = np_new->status;
+          return ret;
+      }
+  }
 
   if ((uint32_t)request == REQ_QUERY_GPU) {
     iodata = (iodata_t *)data;
