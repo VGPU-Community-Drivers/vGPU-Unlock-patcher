@@ -328,7 +328,6 @@ if [ ! -d "${VGPU}" ]; then
     done
     set +x
     blobpatch ${VGPU}/libnvidia-vgpu.so.${vb} "$BASEDIR/patches/libnvidia-vgpu.so.${vb}.diff" || exit 1
-    applypatch ${VGPU} adapt-nv-vgpu-vfio-interface-to-fit-blob-changes.patch
 else
     echo "WARNING: skipping frankenstein setup as ${VGPU} already exists"
     echo -e "${VGPU}/libvgpucompat.so: $BASEDIR/patches/cvgpu.c\n\tgcc -o \$@ -shared -fPIC -O2 -s -Wall \$<" | make -f - || die "build of libvgpucompat.so failed"
