@@ -92,7 +92,7 @@ static void vup_hook_cudahost_naked(void)
 		"push   %rcx            \n"
 		"push   %r8             \n"
 		"push   %r9             \n"
-		"lea   0x429(%rsi), %rdi\n"
+		"lea   0x55a(%rsi), %rdi\n"
 		"call  vup_hook_cudahost\n"
 		"pop    %r9             \n"
 		"pop    %r8             \n"
@@ -100,7 +100,7 @@ static void vup_hook_cudahost_naked(void)
 		"pop    %rdx            \n"
 		"pop    %rsi            \n"
 		"pop    %rdi            \n"
-		"cmpb   $0, 0x555(%rdi) \n"
+		"cmpb   $0, 0xaea(%rdi) \n"
 		"ret                    \n"
 		"int3                   \n"
 	);
@@ -132,12 +132,15 @@ static void vup_hook_vupdevid_naked(void)
 		"push   %r8             \n"
 		"push   %r9             \n"
 		"push   %rax            \n"
-		"mov    %r12, %rdi      \n"
+		"mov    %r15, %rdi      \n"
+		"shr    $0x10, %edi     \n"
 		"mov    %eax, %esi      \n"
 		"call  vup_hook_vupdevid\n"
+		"shl    $0x10, %eax     \n"
 		"test   %eax, %eax      \n"
-		"mov    $1, %r15d       \n"
-		"cmovne %eax, %r12d     \n"
+		"movw   %r15w, %ax      \n"
+		"mov    $1, %r14d       \n"
+		"cmovne %eax, %r15d     \n"
 		"pop    %rax            \n"
 		"pop    %r9             \n"
 		"pop    %r8             \n"
@@ -145,8 +148,8 @@ static void vup_hook_vupdevid_naked(void)
 		"pop    %rdx            \n"
 		"pop    %rsi            \n"
 		"pop    %rdi            \n"
-		"mov    %eax, 0xc(%rbp) \n"
-		"mov    %rbx, %rax      \n"
+		"mov    %eax, 0x8(%rbp) \n"
+		"mov    %r12, %rax      \n"
 		"ret                    \n"
 		"int3                   \n"
 	);
@@ -154,8 +157,8 @@ static void vup_hook_vupdevid_naked(void)
 STACK_FRAME_NON_STANDARD(vup_hook_vupdevid_naked);
 
 static int vup_klogtrace_filter[][2] = {
-	{ 0xbfe247, 0x04d0 },
-	{ 0x44c48c, 0x0712 },
+	{ 0xbfe247, 0x04ef },
+	{ 0x44c48c, 0x06f1 },
 };
 
 static int vup_klogtrace;
@@ -216,53 +219,52 @@ STACK_FRAME_NON_STANDARD(vup_hook_klogtrace_naked);
 
 static struct vup_hook_info vup_hooks[] = {
 #if defined(NV_VGPU_KVM_BUILD)
-	VUP_HOOK(0x0035A0C9, cudahost, 1, 0x80, 0xBF, 0x55, 0x05, 0x00, 0x00, 0x00),
-	VUP_HOOK(0x004425D9, vupdevid, 1, 0x89, 0x45, 0x0C, 0x48, 0x89, 0xD8),
-	VUP_HOOK(0x0001188C, klogtrace,0, 0x48, 0x81, 0xED, 0x40, 0x04, 0x00, 0x00),
+	VUP_HOOK(0x00373C09, cudahost, 1, 0x80, 0xBF, 0xEA, 0x0A, 0x00, 0x00, 0x00),
+	VUP_HOOK(0x00459FCA, vupdevid, 1, 0x89, 0x45, 0x08, 0x4C, 0x89, 0xE0),
+	VUP_HOOK(0x0000FF5C, klogtrace,0, 0x48, 0x81, 0xED, 0x40, 0x04, 0x00, 0x00),
 #else
-	VUP_HOOK(0x004425D9, vupdevid, 1, 0x89, 0x45, 0x0C, 0x48, 0x89, 0xD8),
-	VUP_HOOK(0x0001188C, klogtrace,0, 0x48, 0x81, 0xED, 0x40, 0x04, 0x00, 0x00),
+	VUP_HOOK(0x00459FCA, vupdevid, 1, 0x89, 0x45, 0x08, 0x4C, 0x89, 0xE0),
+	VUP_HOOK(0x0000FF5C, klogtrace,0, 0x48, 0x81, 0xED, 0x40, 0x04, 0x00, 0x00),
 #endif
 };
 
 
 #if defined(NV_VGPU_KVM_BUILD)
 
-#define RM_IOCTL_OFFSET 0x921e30
+#define RM_IOCTL_OFFSET 0x997c40
 
 static struct vup_patch_item vup_diff_vgpusig[] = {
 	// based on patch from mbuchel to disable vgpu config signature
-	{ 0x00736330, 0x85, 0x31 },
+	{ 0x00740D93, 0x74, 0xEB },
 };
 VUP_PATCH_DEF(vgpusig, 1, 1, 1);
 
 static struct vup_patch_item vup_diff_kunlock[] = {
-	{ 0x0009AF16, 0x75, 0xEB },
-	{ 0x0009B3E2, 0x01, 0x00 },
-	{ 0x00435F74, 0xE0, 0xC8 },
-	{ 0x0043A5A8, 0x95, 0x93 },
-	{ 0x00441E98, 0x01, 0x05 },
-	{ 0x004427FE, 0x75, 0xEB },
-	{ 0x0044A59B, 0xF8, 0xC8 },
+	{ 0x0009A2F6, 0x0F, 0xE9 },
+	{ 0x0009A2F7, 0x87, 0x49 },
+	{ 0x0009A2F8, 0xDC, 0x01 },
+	{ 0x0043DE00, 0x94, 0x00 },
+	{ 0x0043E555, 0x01, 0x05 },
+	{ 0x0044DD44, 0xE0, 0xC8 },
+	{ 0x00452B88, 0x95, 0x93 },
+	{ 0x0045F61B, 0xF8, 0xC8 },
 };
 VUP_PATCH_DEF(kunlock, 1, 1, 1);
 
 static struct vup_patch_item vup_diff_qmode[] = {
-	{ 0x0042B371, 0x0D, 0x07 },
-	{ 0x0042B37A, 0x84, 0x85 },
-	{ 0x004481FB, 0x0D, 0x07 },
-	{ 0x00448204, 0x84, 0x85 },
+	{ 0x00442760, 0x0D, 0x07 },
+	{ 0x00442769, 0x84, 0x85 },
 };
 VUP_PATCH_DEF(qmode, 0, 0, 1);
 
 static struct vup_patch_item vup_diff_merged[] = {
-	{ 0x00424FD9, 0x1E, 0x00 },
+	{ 0x0009B10C, 0xB3, 0x00 },
 };
 VUP_PATCH_DEF(merged, VUP_MERGED_DRIVER, 1, 1);
 
 static struct vup_patch_item vup_diff_sunlock[] = {
 	// based on patch from LIL'pingu fixing xid 43 crashes
-	{ 0x000989D2, 0x10, 0x00 },
+	{ 0x000999B1, 0x10, 0x00 },
 };
 VUP_PATCH_DEF(sunlock, 0, 1, 1);
 
@@ -279,11 +281,13 @@ struct vup_patch_info *vup_patches[] = {
 static int vup_gridext = 1;
 module_param_named(gridext, vup_gridext, int, 0400);
 
-#define RM_IOCTL_OFFSET 0x921e30
+#define RM_IOCTL_OFFSET 0x998220
 static struct vup_patch_item vup_diff_general[] = {
-	{ 0x0009AF16, 0x75, 0xEB },
-	{ 0x00739AC9, 0x09, 0x00 },
-	{ 0x0093096A, 0x1D, 0x00 },
+	{ 0x0009A2F6, 0x0F, 0xE9 },
+	{ 0x0009A2F7, 0x87, 0x49 },
+	{ 0x0009A2F8, 0xDC, 0x01 },
+	{ 0x0074A7E9, 0x09, 0x00 },
+	{ 0x009A3FDA, 0x1D, 0x00 },
 };
 VUP_PATCH_DEF(general, 1, 1, 1);
 struct vup_patch_info *vup_patches[] = {
