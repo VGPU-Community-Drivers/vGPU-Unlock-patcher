@@ -265,6 +265,7 @@ int ioctl(int fd, int request, void *data)
           np_old->hClass = np_new->hClass;
           np_old->pAllocParms = np_new->pAllocParms;
           np_old->status = np_new->status;
+          free(np_new);
           return ret;
       }
   }
@@ -294,6 +295,7 @@ int ioctl(int fd, int request, void *data)
           np_old->pRightsRequested = np_new->pRightsRequested;
           np_old->flags = np_new->flags;
           np_old->status = np_new->status;
+          free(np_new);
           return ret;
       }
   }
