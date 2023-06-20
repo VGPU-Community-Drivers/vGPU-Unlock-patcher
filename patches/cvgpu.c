@@ -86,12 +86,61 @@ typedef struct nv_ioctl_numa_info_535
 /*
  * https://github.com/NVIDIA/open-gpu-kernel-modules/src/common/sdk/nvidia/inc/nvtypes.h
  */
+typedef uint8_t            NvU8;
 typedef uint32_t           NvU32;
 typedef uint32_t           NvV32;
+typedef uint64_t           NvU64;
 typedef void*              NvP64;
 typedef struct { NvU32 val; } NvHandle;
+typedef NvU8 NvBool;
+#define NV_TRUE           ((NvBool)(0 == 0))
+#define NV_FALSE          ((NvBool)(0 != 0))
 #define NV_ALIGN_BYTES(size) __attribute__ ((aligned (size)))
+#define NV_DECLARE_ALIGNED(TYPE_VAR, ALIGN) TYPE_VAR __attribute__ ((aligned (ALIGN)))
 
+
+/*
+ * https://github.com/NVIDIA/open-gpu-kernel-modules/src/common/sdk/nvidia/inc/nv_vgpu_types.h
+ */
+
+#define VM_UUID_SIZE            16
+
+/* This enum represents types of VM identifiers */
+typedef enum VM_ID_TYPE {
+    VM_ID_DOMAIN_ID = 0,
+    VM_ID_UUID = 1,
+} VM_ID_TYPE;
+
+/* This structure represents VM identifier */
+typedef union VM_ID {
+    NvU8 vmUuid[VM_UUID_SIZE];
+    NV_DECLARE_ALIGNED(NvU64 vmId, 8);
+} VM_ID;
+
+
+/*
+ * https://github.com/NVIDIA/open-gpu-kernel-modules/src/common/sdk/nvidia/inc/ctrl/ctrl2080/ctrl2080event.h
+ */
+
+#define NV2080_CTRL_CMD_EVENT_SET_GUEST_MSI (0x20800305) /* finn: Evaluated from "(FINN_NV20_SUBDEVICE_0_EVENT_INTERFACE_ID << 8) | NV2080_CTRL_EVENT_SET_GUEST_MSI_PARAMS_MESSAGE_ID" */
+
+typedef struct NV2080_CTRL_EVENT_SET_GUEST_MSI_PARAMS {
+    NV_DECLARE_ALIGNED(NvU64 guestMSIAddr, 8);
+    NvU32    guestMSIData;
+    NvHandle hSemMemory;
+    NvBool   isReset;
+    VM_ID_TYPE vmIdType;                        // <<--
+    NV_DECLARE_ALIGNED(VM_ID guestVmId, 8);     // <<--
+} NV2080_CTRL_EVENT_SET_GUEST_MSI_PARAMS;
+// git diff -bB 535.43.02..535.54.03 -- src/common/sdk/nvidia/inc/ctrl/ctrl2080/ctrl2080event.h
+typedef struct NV2080_CTRL_EVENT_SET_GUEST_MSI_PARAMS_535 {
+    NV_DECLARE_ALIGNED(NvU64 guestMSIAddr, 8);
+    NvU32    guestMSIData;
+    NvHandle hSemMemory;
+    NvBool   isReset;
+    NvU8     vgpuUuid[VM_UUID_SIZE];            // <<--
+    NV_DECLARE_ALIGNED(NvU64 domainId, 8);      // <<--
+} NV2080_CTRL_EVENT_SET_GUEST_MSI_PARAMS_535;
 
 /*
  * https://github.com/NVIDIA/open-gpu-kernel-modules/src/nvidia/arch/nvalloc/unix/include/nv_escape.h
@@ -163,6 +212,7 @@ static uint32_t ioctl_fixups[][3] = {
     { 0xa0840101, 0x00104, 0x00100 },
     { 0x20800A2A, 0x00cc0, 0x00d40 },
     { 0x20800188, 0x00004, 0x00008 },
+    { 0x20800305, 0x00028, 0x00030 },
 #endif
     { 0, 0, 0 }
 };
@@ -305,8 +355,6 @@ int ioctl(int fd, int request, void *data)
 
     if (dbg_trace_level >= 3)
         syslog(LOG_INFO, "ioctl_request op_type 0x%x op_size 0x%02x\n", iodata->op_type, iodata->op_size);
-    if (dbg_trace_level >= 4)
-        dbgdump(NULL, request, iodata->op_type, iodata->result, iodata->op_size, NULL);
 
     for (i = 0; ioctl_fixups[i][0] != 0; i++) {
         if (iodata->op_type == ioctl_fixups[i][0] && iodata->op_size == ioctl_fixups[i][1]) {
@@ -327,10 +375,28 @@ int ioctl(int fd, int request, void *data)
                     //memset(old_buff + iofp[2], 0, iodata->op_size - iofp[2]);
                 }
                 iodata->op_size = iofp[2];
+                if (iodata->op_type == NV2080_CTRL_CMD_EVENT_SET_GUEST_MSI) {
+                    NV2080_CTRL_EVENT_SET_GUEST_MSI_PARAMS *old_msip = old_buff;
+                    NV2080_CTRL_EVENT_SET_GUEST_MSI_PARAMS_535 *new_msip = new_buff;
+                    if (dbg_trace_level >= 4)
+                        dbgdump(NULL, request, iodata->op_type, old_buff, iofp[1], "-orig");
+                    switch (old_msip->vmIdType) {
+                    case VM_ID_DOMAIN_ID:
+                        memset(&new_msip->vgpuUuid, 0, sizeof(new_msip->vgpuUuid));
+                        new_msip->domainId = old_msip->guestVmId.vmId;
+                        break;
+                    case VM_ID_UUID:
+                        memcpy(&new_msip->vgpuUuid, &old_msip->guestVmId.vmUuid, sizeof(new_msip->vgpuUuid));
+                        new_msip->domainId = 0;
+                        break;
+                    }
+                }
             }
             break;
         }
     }
+    if (dbg_trace_level >= 4)
+        dbgdump(NULL, request, iodata->op_type, iodata->result, iodata->op_size, NULL);
   }
 
   ret = real_ioctl(fd, request, data);
@@ -353,7 +419,10 @@ int ioctl(int fd, int request, void *data)
         if (iodata->result == new_buff) {
             uint32_t size = iofp[1] < iofp[2] ? iofp[1] : iofp[2];
             iodata->result = old_buff;
-            memcpy(old_buff, new_buff, size);
+            if (iodata->op_type == NV2080_CTRL_CMD_EVENT_SET_GUEST_MSI) {
+                // keep the content of the old request struct
+            } else
+                memcpy(old_buff, new_buff, size);
         } else
             syslog(LOG_ERR, "... ioctl_request op_type 0x%x op_size 0x%x -> 0x%x lost new_buff\n",
                 iodata->op_type, iofp[1], iofp[2]);
@@ -408,6 +477,7 @@ int ioctl(int fd, int request, void *data)
     if (
       //iodata->op_type == 0xA0820104 ||
       iodata->op_type == 0xA082012C ||
+      iodata->op_type == NV2080_CTRL_CMD_EVENT_SET_GUEST_MSI ||    // still fails, we would need to set domainId probably with 535.54.03
       //iodata->op_type == 0x90960103 ||
       //iodata->op_type == 0x90960101 ||
       0)
