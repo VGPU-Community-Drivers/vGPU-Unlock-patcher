@@ -2,9 +2,9 @@
 
 BASEDIR=$(dirname $0)
 
-GNRL="NVIDIA-Linux-x86_64-535.43.02"
-VGPU="NVIDIA-Linux-x86_64-535.43.02-vgpu-kvm"
-GRID="NVIDIA-Linux-x86_64-535.43.02-grid"
+GNRL="NVIDIA-Linux-x86_64-535.54.03"
+VGPU="NVIDIA-Linux-x86_64-535.54.03-vgpu-kvm"
+GRID="NVIDIA-Linux-x86_64-535.54.03-grid"
 #WSYS="NVIDIA-Windows-x86_64-474.30"
 #WSYS="NVIDIA-Windows-x86_64-512.15"
 #WSYS="NVIDIA-Windows-x86_64-516.25"
@@ -13,7 +13,8 @@ GRID="NVIDIA-Linux-x86_64-535.43.02-grid"
 #WSYS="NVIDIA-Windows-x86_64-528.24"
 #WSYS="NVIDIA-Windows-x86_64-528.89"
 #WSYS="NVIDIA-Windows-x86_64-531.41"
-WSYS="NVIDIA-Windows-x86_64-535.98"
+#WSYS="NVIDIA-Windows-x86_64-535.98"
+WSYS="NVIDIA-Windows-x86_64-536.23"
 
 KLOGT=true
 TESTSIGN=true
@@ -298,7 +299,7 @@ $SETUP_TESTSIGN && {
 echo "WARNING: this is highly experimental frankenstein setup for vgpu drivers!"
 if [ ! -d "${VGPU}" ]; then
     VGPUa="NVIDIA-Linux-x86_64-525.105.14-vgpu-kvm"
-    VGPUb="NVIDIA-Linux-x86_64-535.43.02"
+    VGPUb="NVIDIA-Linux-x86_64-535.54.03"
     va=`echo ${VGPUa} | awk -F- '{print $4}'`
     vb=`echo ${VGPUb} | awk -F- '{print $4}'`
     [ -e ${VGPUa}.run -a -e ${VGPUb}.run ] || die "some of ${VGPUa} ${VGPUb} run files missing"
