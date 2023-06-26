@@ -317,6 +317,7 @@ if [ ! -d "${VGPU}" ]; then
     sed -e '/^NV_CONFTEST_TYPE_COMPILE_TESTS/ s/\(+= mdev_parent\)$/\1_ops/' -i ${VGPU}/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.Kbuild
     sed -e '/nv_uvm_interface.c/aNVIDIA_SOURCES += nvidia/nv-vgpu-vfio-interface.c' -i ${VGPU}/kernel/nvidia/nvidia-sources.Kbuild
     grep 'kernel/\(common\|nvidia\)/.*\(nv-dmabuf\|nvkms\)' ${VGPUb}/.manifest >> ${VGPU}/.manifest
+    echo 'kernel/common/inc/nv-firmware-registry.h 0644 KERNEL_MODULE_SRC INHERIT_PATH_DEPTH:1 MODULE:resman' >> ${VGPU}/.manifest
     sed -e "s/${va//./\\.}/${vb}/g" -i ${VGPU}/.manifest
     for s in libnvidia-vgpu.so libnvidia-vgxcfg.so
     do
