@@ -202,6 +202,7 @@ typedef struct
 
 #define DO_FIXUPS
 static int dbg_trace_level = 0;
+static volatile char spoof_devid_opt[] = "enable_spoof_devid=0";
 
 static uint32_t ioctl_fixups[][3] = {
 #ifdef DO_FIXUPS
@@ -256,6 +257,7 @@ static void dbgdump(uint32_t *pstatus, int request, uint32_t op_type, uint8_t *b
 int ioctl(int fd, int request, void *data)
 {
   static ioctl_t real_ioctl = 0;
+  static int spoof_devid_enabled = -1;
   void *old_buff = NULL;
   void *new_buff = NULL;
   iodata_t *iodata;
@@ -265,6 +267,8 @@ int ioctl(int fd, int request, void *data)
 
   if (!real_ioctl)
     real_ioctl = dlsym(RTLD_NEXT, "ioctl");
+  if (spoof_devid_enabled < 0)
+    spoof_devid_enabled = spoof_devid_opt[strlen((char *)spoof_devid_opt) - 1] == '1' ? 1 : 0;
 
   iofp = NULL;
 
@@ -468,6 +472,65 @@ int ioctl(int fd, int request, void *data)
 
   //Driver will try again
   if (iodata -> status == STATUS_TRY_AGAIN) return ret;
+
+  if (spoof_devid_enabled > 0 && iodata->op_type == OP_READ_PCI_ID) {
+    // Lookup address of the device and subsystem IDs.
+    uint16_t * devid_ptr = (uint16_t * ) iodata -> result + 1;
+    uint16_t * subsysid_ptr = (uint16_t * ) iodata -> result + 3;
+    // Now we replace the device ID with a spoofed value that needs to
+    // be determined such that the spoofed value represents a GPU with
+    // vGPU support that uses the same GPU chip as our actual GPU.
+    uint16_t actual_devid = * devid_ptr;
+    uint16_t spoofed_devid = actual_devid;
+    uint16_t actual_subsysid = * subsysid_ptr;
+    uint16_t spoofed_subsysid = actual_subsysid;
+
+    // Maxwell
+    if ((0x1340 <= actual_devid && actual_devid <= 0x13bd) ||
+      (0x174d <= actual_devid && actual_devid <= 0x179c)) {
+      spoofed_devid = 0x13bd; // Tesla M10
+      spoofed_subsysid = 0x1160;
+    }
+    // Maxwell 2.0
+    if ((0x13c0 <= actual_devid && actual_devid <= 0x1436) ||
+      (0x1617 <= actual_devid && actual_devid <= 0x1667) ||
+      (0x17c2 <= actual_devid && actual_devid <= 0x17fd)) {
+      spoofed_devid = 0x13f2; // Tesla M60
+    }
+    // Pascal
+    if ((0x15f0 <= actual_devid && actual_devid <= 0x15f1) ||
+      (0x1b00 <= actual_devid && actual_devid <= 0x1d56) ||
+      (0x1725 <= actual_devid && actual_devid <= 0x172f)) {
+      spoofed_devid = 0x1b38; // Tesla P40
+    }
+    // GV100 Volta
+    if (actual_devid == 0x1d81 || // TITAN V
+      actual_devid == 0x1dba) { // Quadro GV100 32GB
+      spoofed_devid = 0x1db6; // Tesla V100 32GB PCIE
+    }
+    // Turing
+    if ((0x1e02 <= actual_devid && actual_devid <= 0x1ff9) ||
+      (0x2182 <= actual_devid && actual_devid <= 0x21d1)) {
+      spoofed_devid = 0x1e30; // Quadro RTX 6000
+      spoofed_subsysid = 0x12ba;
+      //spoofed_devid = 0x1e89; // GeForce RTX 2060 6GB
+      //spoofed_subsysid = 0x134d;
+      //spoofed_devid = 0x1e84; // GeForce RTX 2070 8GB
+      //spoofed_subsysid = 0x134d;
+    }
+    // Ampere
+    if (0x2200 <= actual_devid && actual_devid <= 0x2600) {
+      spoofed_devid = 0x2230; // RTX A6000
+    }
+    * devid_ptr = spoofed_devid;
+    * subsysid_ptr = spoofed_subsysid;
+  }
+
+  if (spoof_devid_enabled > 0 && iodata -> op_type == OP_READ_DEV_TYPE) {
+    // Set device type to vGPU capable.
+    uint64_t * dev_type_ptr = (uint64_t * ) iodata -> result;
+    * dev_type_ptr = DEV_TYPE_VGPU_CAPABLE;
+  }
 
   if(iodata->status != STATUS_OK) {
 #ifdef DO_FIXUPS

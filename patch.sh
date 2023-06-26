@@ -62,6 +62,7 @@ DO_WSYS=false
 DO_UNLK=true
 DO_LIBS=true
 DO_LK6P=false
+SPOOF_DEVID=false
 
 while [ $# -gt 0 -a "${1:0:2}" = "--" ]
 do
@@ -85,6 +86,10 @@ do
         --lk6-patches)
             shift
             DO_LK6P=true
+            ;;
+        --spoof-devid)
+            shift
+            SPOOF_DEVID=true
             ;;
         --repack)
             shift
@@ -535,6 +540,8 @@ if $DO_VGPU; then
     applypatch ${TARGET} vgpu-kvm-nvidia-535.43-compat.patch
     applypatch ${TARGET} workaround-for-cards-with-inforom-error.patch
     applypatch ${TARGET} vcfg-testing.patch
+    applypatch ${TARGET} verbose-firmware-load.patch
+    $SPOOF_DEVID && sed -e 's/\(enable_spoof_devid\)=0/\1=1/' -i ${TARGET}/libvgpucompat.so
     vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1E84 0x0000	# RTX 2070 super 8GB
     vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1E81 0x0000	# RTX 2080 super 8GB
     vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1f03 0x0000	# RTX 2060 12GB

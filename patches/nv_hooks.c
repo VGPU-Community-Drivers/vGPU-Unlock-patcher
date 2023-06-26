@@ -269,6 +269,13 @@ static struct vup_patch_item vup_diff_sunlock[] = {
 };
 VUP_PATCH_DEF(sunlock, 0, 1, 1);
 
+static struct vup_patch_item vup_diff_gspvgpu[] = {
+	{ 0x00031DF5, 0x1B, 0x00 },
+	{ 0x00031E01, 0x74, 0xEB },
+	//{ 0x00880449, 0x85, 0x31 },
+};
+VUP_PATCH_DEF(gspvgpu, 0, 1, 1);
+
 struct vup_patch_info *vup_patches[] = {
 	VUP_PATCH(vgpusig),
 	VUP_PATCH(kunlock),
@@ -276,6 +283,7 @@ struct vup_patch_info *vup_patches[] = {
 	VUP_PATCH(merged),
 	VUP_PATCH(fbcon),
 	VUP_PATCH(sunlock),
+	VUP_PATCH(gspvgpu),
 };
 
 #elif defined(NV_GRID_BUILD)

@@ -1,0 +1,15 @@
+diff --git a/kernel/nvidia/nv.c b/kernel/nvidia/nv.c
+index 4a4bfef..7e4a321 100644
+--- a/kernel/nvidia/nv.c
++++ b/kernel/nvidia/nv.c
+@@ -3671,6 +3671,10 @@ const void* NV_API_CALL nv_get_firmware(
+     nv_linux_state_t *nvl = NV_GET_NVL_FROM_NV_STATE(nv);
+     const struct firmware *fw;
+ 
++    nv_printf(NV_DBG_ERRORS, "NVRM: nv_get_firmware fw_type=%d fw_chip_family=\"%s\"\n",
++              fw_type, nv_firmware_chip_family_to_string(fw_chip_family));
++    //dump_stack();
++
+     // path is relative to /lib/firmware
+     // if this fails it will print an error to dmesg
+     if (request_firmware(&fw, nv_firmware_path(fw_type, fw_chip_family), nvl->dev) != 0)
