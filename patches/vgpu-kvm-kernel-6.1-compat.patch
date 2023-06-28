@@ -1,7 +1,7 @@
 From: snowman <snowman@localhost.localdomain>
 Subject: [PATCH] vgpu kvm kernel 6.1 compat
 
-nvidia vgpu kvm 525.85 fixes for compatibility with linux 6.1 kernel
+nvidia vgpu kvm 525.125 fixes for compatibility with linux 6.1 kernel
 
 tested with 6.1.21 version
 
@@ -413,19 +413,19 @@ index b65f477..0914140 100644
          up(&phys_dev->ops_lock);
          nv_vgpu_free_mdev_fops(phys_dev);
 diff --git a/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.h b/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.h
-index 7f39f59..ad69cf3 100644
+index 362cd06..62f6626 100644
 --- a/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.h
 +++ b/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.h
-@@ -81,6 +81,8 @@ NV_STATUS nv_vfio_vgpu_vf_reg_access_from_plugin(struct pci_dev *pdev, VGPU_EMUL
- NV_STATUS  nv_vgpu_set_mdev_fops(struct phys_dev_s *);
+@@ -84,6 +84,8 @@ NV_STATUS  nv_vgpu_set_mdev_fops(struct phys_dev_s *);
  void       nv_vgpu_free_mdev_fops(struct phys_dev_s *);
  void       nv_vgpu_vfio_dma_unmap(struct vgpu_dev_s *, NvU64, NvU64);
+ int        nv_vgpu_vfio_get_migration_data_size(struct vgpu_dev_s *, unsigned long *);
 +ssize_t    nv_vgpu_vfio_description_show(struct mdev_type *mtype, char *buf);
 +unsigned   nv_vgpu_vfio_get_available(struct mdev_type *mtype);
  
  #if defined(NV_VFIO_DEVICE_MIG_STATE_PRESENT)
  struct file *nv_vgpu_set_device_state(struct vfio_device *core_vdev, struct vgpu_dev_s *vgpu_dev,
-@@ -143,7 +145,7 @@ do                                                      \
+@@ -146,7 +148,7 @@ do                                                      \
  #if defined(NV_MDEV_PARENT_DEV_PRESENT)
  #define NV_GET_MDEV_PARENT(mdev) mdev_parent_dev(mdev)
  #else
@@ -524,9 +524,9 @@ index 2c4cadb..ed5f6d8 100644
  }
  
  static int nv_vfio_mdev_open(struct vfio_device *core_vdev)
-@@ -231,6 +222,21 @@ static void nv_vfio_mdev_dma_unmap(struct vfio_device *core_vdev,
+@@ -244,6 +235,21 @@ static int nv_vfio_mdev_get_migration_data_size(struct vfio_device *core_vdev, u
+     return ret;
  }
- #endif
  
 +static int nv_vfio_mdev_init_dev(struct vfio_device *core_vdev)
 +{
@@ -555,30 +555,30 @@ index 2c4cadb..ed5f6d8 100644
  #if defined(NV_MDEV_PARENT_OPS_HAS_OPEN_DEVICE) || defined(NV_MDEV_DRIVER_HAS_SUPPORTED_TYPE_GROUPS)
      .open_device    = nv_vfio_mdev_open,
      .close_device   = nv_vfio_mdev_release,
-@@ -270,17 +278,13 @@ static int nv_vfio_mdev_probe(struct mdev_device *mdev)
+@@ -286,17 +294,13 @@ static int nv_vfio_mdev_probe(struct mdev_device *mdev)
      if (!mdev)
          return -EINVAL;
  
 -    ret = nv_alloc_vgpu_dev(&vgpu_dev);
 -    if (ret)
 -        return ret;
--
--    nv_init_vgpu_dev(vgpu_dev, mdev);
  
--    vdev = kzalloc(sizeof(*vdev), GFP_KERNEL);
--    if (!vdev)
--        return -ENOMEM;
+-    nv_init_vgpu_dev(vgpu_dev, mdev);
 +    vgpu_dev = vfio_alloc_device(vgpu_dev_s, vdev, &mdev->dev,
 +                                 &nv_vfio_mdev_dev_ops);
 +    if (IS_ERR(vgpu_dev))
 +        return PTR_ERR(vgpu_dev);
  
+-    vdev = kzalloc(sizeof(*vdev), GFP_KERNEL);
+-    if (!vdev)
+-        return -ENOMEM;
+-
 -    vfio_init_group_dev(vdev, &mdev->dev, &nv_vfio_mdev_dev_ops);
 +    vdev = &vgpu_dev->vdev;
  
  #if defined(NV_VFIO_DEVICE_MIG_STATE_PRESENT)
      vdev->migration_flags = VFIO_MIGRATION_STOP_COPY;
-@@ -290,6 +294,8 @@ static int nv_vfio_mdev_probe(struct mdev_device *mdev)
+@@ -306,6 +310,8 @@ static int nv_vfio_mdev_probe(struct mdev_device *mdev)
      vdev->mig_ops = &nv_vfio_mdev_migration_ops;
  #endif
  
@@ -619,13 +619,16 @@ index 2c4cadb..ed5f6d8 100644
      struct vfio_device *vdev = NULL;
      vgpu_dev_t *vgpu_dev = NULL;
  
-@@ -332,26 +327,17 @@ static void nv_vfio_mdev_remove(struct mdev_device *mdev)
+@@ -348,29 +343,17 @@ static void nv_vfio_mdev_remove(struct mdev_device *mdev)
      if (!vgpu_dev)
          return;
  
 -    ret = nv_vgpu_vfio_mdev_destroy(vgpu_dev);
 -    if (ret)
+-    {
 -        NV_VGPU_DEV_LOG(VGPU_ERR, vgpu_dev, "Failed to destroy vGPU device, ret: %d\n", ret);
+-        return;
+-    }
 +    vdev = &vgpu_dev->vdev;
  
 -    vdev = vgpu_dev->vdev;
