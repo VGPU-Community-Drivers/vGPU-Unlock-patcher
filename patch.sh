@@ -529,6 +529,7 @@ if $DO_VGPU; then
     if $DO_LK6P; then
         applypatch ${TARGET} vgpu-kvm-kernel-6.1-compat.patch
         applypatch ${TARGET} vgpu-kvm-kernel-6.2-compat.patch
+        sed -e 's/^\([ \t]*mdev_set_iommu_device\)();/\1XXX();/' -i ${TARGET}/kernel/conftest.sh
     fi
     applypatch ${TARGET} vgpu-kvm-nvidia-535.43-compat.patch
     applypatch ${TARGET} workaround-for-cards-with-inforom-error.patch
