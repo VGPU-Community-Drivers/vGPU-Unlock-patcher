@@ -3,7 +3,7 @@
 BASEDIR=$(dirname $0)
 
 GNRL="NVIDIA-Linux-x86_64-535.54.03"
-VGPU="NVIDIA-Linux-x86_64-535.54.03-vgpu-kvm"
+VGPU="NVIDIA-Linux-x86_64-535.54.06-vgpu-kvm"
 GRID="NVIDIA-Linux-x86_64-535.54.03-grid"
 #WSYS="NVIDIA-Windows-x86_64-474.30"
 #WSYS="NVIDIA-Windows-x86_64-512.15"
@@ -14,7 +14,8 @@ GRID="NVIDIA-Linux-x86_64-535.54.03-grid"
 #WSYS="NVIDIA-Windows-x86_64-528.89"
 #WSYS="NVIDIA-Windows-x86_64-531.41"
 #WSYS="NVIDIA-Windows-x86_64-535.98"
-WSYS="NVIDIA-Windows-x86_64-536.23"
+#WSYS="NVIDIA-Windows-x86_64-536.23"
+WSYS="NVIDIA-Windows-x86_64-536.25"
 
 KLOGT=true
 TESTSIGN=true
