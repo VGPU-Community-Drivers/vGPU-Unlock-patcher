@@ -296,8 +296,6 @@ static struct vup_patch_item vup_diff_general[] = {
 	{ 0x000B7A88, 0x75, 0xEB },
 	{ 0x00896B49, 0x09, 0x00 },
 	{ 0x00A726E2, 0x3D, 0x00 },
-
-	{ 0x0086EDE9, 0x23, 0x21 },
 };
 VUP_PATCH_DEF(general, 1, 1, 1);
 struct vup_patch_info *vup_patches[] = {

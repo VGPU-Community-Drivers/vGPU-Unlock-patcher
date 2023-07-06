@@ -61,8 +61,6 @@ DO_MRGD=false
 DO_WSYS=false
 DO_UNLK=true
 DO_LIBS=true
-DO_LK6P=false
-SPOOF_DEVID=false
 
 while [ $# -gt 0 -a "${1:0:2}" = "--" ]
 do
@@ -82,14 +80,6 @@ do
         --create-cert)
             shift
             SETUP_TESTSIGN=true
-            ;;
-        --lk6-patches)
-            shift
-            DO_LK6P=true
-            ;;
-        --spoof-devid)
-            shift
-            SPOOF_DEVID=true
             ;;
         --repack)
             shift
@@ -301,49 +291,6 @@ $SETUP_TESTSIGN && {
         -eku 1.3.6.1.5.5.7.3.3 -m 36 -sv wtestsign/test-spc.pvk -p12 wtestsign/wsys-test-cert.pfx P@ss0wrd wtestsign/test-spc.cer &>/dev/null || die "makecert Test SPC failed"
 }
 
-echo "WARNING: this is highly experimental frankenstein setup for vgpu drivers!"
-if [ ! -d "${VGPU}" ]; then
-    VGPUa="NVIDIA-Linux-x86_64-525.105.14-vgpu-kvm"
-    VGPUb="NVIDIA-Linux-x86_64-535.54.03"
-    va=`echo ${VGPUa} | awk -F- '{print $4}'`
-    vb=`echo ${VGPUb} | awk -F- '{print $4}'`
-    [ -e ${VGPUa}.run -a -e ${VGPUb}.run ] || die "some of ${VGPUa} ${VGPUb} run files missing"
-    which patchelf &>/dev/null || die "patchelf not found"
-    REPACK=false extract ${VGPUa}.run
-    extract ${VGPUb}.run
-    set -x
-    rm -rf "${VGPU}"
-    $CP ${VGPUa} ${VGPU}
-    $CP ${VGPUb}/kernel/{common,nvidia,Kbuild,Makefile,conftest.sh} ${VGPU}/kernel/
-    $CP ${VGPUb}/firmware ${VGPU}/ ; rm ${VGPU}/firmware/gsp_ad10x.bin ; sed -e "s/gsp_ad10x\.bin/gsp_ga10x.bin/" -i ${VGPU}/.manifest
-    rm ${VGPU}/libnvidia-ml.so.${va}
-    $CP ${VGPUb}/{nvidia-smi,libnvidia-ml.so.${vb}} ${VGPU}/
-    sed -e '/^# VGX_KVM_BUILD/aVGX_KVM_BUILD=1' -i ${VGPU}/kernel/conftest.sh
-    sed -e '/^NV_CONFTEST_TYPE_COMPILE_TESTS/ s/\(+= mdev_parent\)$/\1_ops/' -i ${VGPU}/kernel/nvidia-vgpu-vfio/nvidia-vgpu-vfio.Kbuild
-    sed -e '/nv_uvm_interface.c/aNVIDIA_SOURCES += nvidia/nv-vgpu-vfio-interface.c' -i ${VGPU}/kernel/nvidia/nvidia-sources.Kbuild
-    grep 'kernel/\(common\|nvidia\)/.*\(nv-dmabuf\|nvkms\)' ${VGPUb}/.manifest >> ${VGPU}/.manifest
-    echo 'kernel/common/inc/nv-firmware-registry.h 0644 KERNEL_MODULE_SRC INHERIT_PATH_DEPTH:1 MODULE:resman' >> ${VGPU}/.manifest
-    sed -e "s/${va//./\\.}/${vb}/g" -i ${VGPU}/.manifest
-    for s in libnvidia-vgpu.so libnvidia-vgxcfg.so
-    do
-        mv ${VGPU}/${s}.${va} ${VGPU}/${s}.${vb}
-        sed -e "s/${va//./\\.}/${vb}\\x00/g" -i ${VGPU}/${s}.${vb}
-    done
-    gcc -o ${VGPU}/libvgpucompat.so -shared -fPIC -O2 -s -Wall "$BASEDIR/patches/cvgpu.c"
-    echo "libvgpucompat.so 0755 VGX_LIB NATIVE MODULE:vgpu" >> ${VGPU}/.manifest
-    for s in nvidia-vgpu-mgr nvidia-vgpud
-    do
-        $CP ${VGPUa}/${s} ${VGPU}/
-        sed -e "s/${va//./\\.}/${vb}\\x00/g" -i ${VGPU}/${s}
-        patchelf --add-needed libvgpucompat.so ${VGPU}/${s}
-    done
-    set +x
-    blobpatch ${VGPU}/libnvidia-vgpu.so.${vb} "$BASEDIR/patches/libnvidia-vgpu.so.${vb}.diff" || exit 1
-else
-    echo "WARNING: skipping frankenstein setup as ${VGPU} already exists"
-    echo -e "${VGPU}/libvgpucompat.so: $BASEDIR/patches/cvgpu.c\n\tgcc -o \$@ -shared -fPIC -O2 -s -Wall \$<" | make -f - || die "build of libvgpucompat.so failed"
-fi
-
 $DO_VGPU && extract ${VGPU}.run
 $DO_GRID && {
     if $SWITCH_GRID_TO_GNRL; then
@@ -533,16 +480,9 @@ $DO_LIBS && {
 }
 
 if $DO_VGPU; then
-    if $DO_LK6P; then
-        applypatch ${TARGET} vgpu-kvm-kernel-6.1-compat.patch
-        applypatch ${TARGET} vgpu-kvm-kernel-6.2-compat.patch
-        sed -e 's/^\([ \t]*mdev_set_iommu_device\)();/\1XXX();/' -i ${TARGET}/kernel/conftest.sh
-    fi
-    applypatch ${TARGET} vgpu-kvm-nvidia-535.43-compat.patch
     applypatch ${TARGET} workaround-for-cards-with-inforom-error.patch
     applypatch ${TARGET} vcfg-testing.patch
     applypatch ${TARGET} verbose-firmware-load.patch
-    $SPOOF_DEVID && sed -e 's/\(enable_spoof_devid\)=0/\1=1/' -i ${TARGET}/libvgpucompat.so
     vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1E84 0x0000	# RTX 2070 super 8GB
     vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1E81 0x0000	# RTX 2080 super 8GB
     vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1f03 0x0000	# RTX 2060 12GB
