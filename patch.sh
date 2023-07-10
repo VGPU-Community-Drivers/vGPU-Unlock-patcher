@@ -62,6 +62,7 @@ DO_MRGD=false
 DO_WSYS=false
 DO_UNLK=true
 DO_LIBS=true
+SPOOF_DEVID=false
 
 while [ $# -gt 0 -a "${1:0:2}" = "--" ]
 do
@@ -81,6 +82,10 @@ do
         --create-cert)
             shift
             SETUP_TESTSIGN=true
+            ;;
+        --spoof-devid)
+            shift
+            SPOOF_DEVID=true
             ;;
         --repack)
             shift
@@ -481,6 +486,16 @@ $DO_LIBS && {
 }
 
 if $DO_VGPU; then
+    if $SPOOF_DEVID; then
+        which patchelf &>/dev/null || die "patchelf not found"
+        gcc -o ${TARGET}/libvgpucompat.so -shared -fPIC -O2 -s -Wall "$BASEDIR/patches/cvgpu.c" || die "failed to build libvgpucompat.so"
+        echo "libvgpucompat.so 0755 VGX_LIB NATIVE MODULE:vgpu" >> ${TARGET}/.manifest
+        for s in nvidia-vgpu-mgr nvidia-vgpud
+        do
+            patchelf --add-needed libvgpucompat.so ${TARGET}/${s}
+        done
+        #sed -e 's/\(enable_spoof_devid\)=./\1=1/' -i ${TARGET}/libvgpucompat.so
+    fi
     applypatch ${TARGET} vgpu-kvm-nvidia-535.54-compat.patch
     applypatch ${TARGET} workaround-for-cards-with-inforom-error.patch
     applypatch ${TARGET} vcfg-testing.patch

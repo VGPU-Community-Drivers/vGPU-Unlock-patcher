@@ -200,9 +200,9 @@ typedef struct
 
 
 
-#define DO_FIXUPS
+//#define DO_FIXUPS
 static int dbg_trace_level = 0;
-static volatile char spoof_devid_opt[] = "enable_spoof_devid=0";
+static volatile char spoof_devid_opt[] = "enable_spoof_devid=1";
 
 static uint32_t ioctl_fixups[][3] = {
 #ifdef DO_FIXUPS
@@ -272,6 +272,7 @@ int ioctl(int fd, int request, void *data)
 
   iofp = NULL;
 
+#ifdef DO_FIXUPS
   if ((uint32_t)request == _IOWR(NV_IOCTL_MAGIC, NV_ESC_NUMA_INFO, nv_ioctl_numa_info_t)) {
       nv_ioctl_numa_info_t_535 *ninfo_new;
       nv_ioctl_numa_info_t *ninfo_old = data;
@@ -353,6 +354,7 @@ int ioctl(int fd, int request, void *data)
           return ret;
       }
   }
+#endif
 
   if ((uint32_t)request == REQ_QUERY_GPU) {
     iodata = (iodata_t *)data;
