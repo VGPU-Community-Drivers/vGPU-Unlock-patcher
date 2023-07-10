@@ -1,0 +1,20 @@
+From: snowman <snowman@localhost.localdomain>
+Subject: [PATCH] vgpu kvm nvidia 535.54 arch workaround
+
+diff --git a/kernel/conftest.sh b/kernel/conftest.sh
+index 984fc20..79a0443 100755
+--- a/kernel/conftest.sh
++++ b/kernel/conftest.sh
+@@ -6386,6 +6386,9 @@ case "$5" in
+             if [ "$ARCH" = "aarch64" ]; then
+                 ARCH="arm64"
+             fi
++            if [ "$ARCH" = "x86" ]; then
++                ARCH="x86_64"
++            fi
+ 
+             if [ "$VFIO_IOMMU_PRESENT" != "0" ] && [ "$KVM_PRESENT" != "0" ] ; then
+ 
+-- 
+2.30.2
+

@@ -481,6 +481,7 @@ $DO_LIBS && {
 }
 
 if $DO_VGPU; then
+    applypatch ${TARGET} vgpu-kvm-nvidia-535.54-compat.patch
     applypatch ${TARGET} workaround-for-cards-with-inforom-error.patch
     applypatch ${TARGET} vcfg-testing.patch
     applypatch ${TARGET} verbose-firmware-load.patch
