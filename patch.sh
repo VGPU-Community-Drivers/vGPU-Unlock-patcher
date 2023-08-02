@@ -2,9 +2,9 @@
 
 BASEDIR=$(dirname $0)
 
-GNRL="NVIDIA-Linux-x86_64-535.54.03"
-VGPU="NVIDIA-Linux-x86_64-535.54.06-vgpu-kvm"
-GRID="NVIDIA-Linux-x86_64-535.54.03-grid"
+GNRL="NVIDIA-Linux-x86_64-535.86.05"
+VGPU="NVIDIA-Linux-x86_64-535.86.05-vgpu-kvm"
+GRID="NVIDIA-Linux-x86_64-535.86.05-grid"
 #WSYS="NVIDIA-Windows-x86_64-474.30"
 #WSYS="NVIDIA-Windows-x86_64-512.15"
 #WSYS="NVIDIA-Windows-x86_64-516.25"
@@ -297,6 +297,48 @@ $SETUP_TESTSIGN && {
         -eku 1.3.6.1.5.5.7.3.3 -m 36 -sv wtestsign/test-spc.pvk -p12 wtestsign/wsys-test-cert.pfx P@ss0wrd wtestsign/test-spc.cer &>/dev/null || die "makecert Test SPC failed"
 }
 
+echo "WARNING: this is highly experimental frankenstein setup for vgpu drivers!"
+if [ ! -d "${VGPU}" ]; then
+    VGPUa="NVIDIA-Linux-x86_64-535.54.06-vgpu-kvm"
+    VGPUb="NVIDIA-Linux-x86_64-535.86.05"
+    va=`echo ${VGPUa} | awk -F- '{print $4}'`
+    vb=`echo ${VGPUb} | awk -F- '{print $4}'`
+    [ -e ${VGPUa}.run -a -e ${VGPUb}.run ] || die "some of ${VGPUa} ${VGPUb} run files missing"
+    which patchelf &>/dev/null || die "patchelf not found"
+    REPACK=false extract ${VGPUa}.run
+    extract ${VGPUb}.run
+    set -x
+    rm -rf "${VGPU}"
+    $CP ${VGPUa} ${VGPU}
+    $CP ${VGPUb}/kernel/{common,nvidia,Kbuild,Makefile,conftest.sh} ${VGPU}/kernel/
+    $CP ${VGPUb}/firmware ${VGPU}/
+    rm ${VGPU}/libnvidia-ml.so.${va}
+    $CP ${VGPUb}/{nvidia-smi,libnvidia-ml.so.${vb}} ${VGPU}/
+    sed -e '/^# VGX_KVM_BUILD/aVGX_KVM_BUILD=1' -i ${VGPU}/kernel/conftest.sh
+    sed -e '/nv_uvm_interface.c/aNVIDIA_SOURCES += nvidia/nv-vgpu-vfio-interface.c' -i ${VGPU}/kernel/nvidia/nvidia-sources.Kbuild
+    grep 'kernel/\(common\|nvidia\)/.*\(nv-dmabuf\|nvkms\)' ${VGPUb}/.manifest >> ${VGPU}/.manifest
+    echo 'kernel/common/inc/nv-firmware-registry.h 0644 KERNEL_MODULE_SRC INHERIT_PATH_DEPTH:1 MODULE:resman' >> ${VGPU}/.manifest
+    sed -e "s/${va//./\\.}/${vb}/g" -i ${VGPU}/.manifest
+    for s in libnvidia-vgpu.so libnvidia-vgxcfg.so
+    do
+        mv ${VGPU}/${s}.${va} ${VGPU}/${s}.${vb}
+        sed -e "s/${va//./\\.}/${vb}/g" -i ${VGPU}/${s}.${vb}
+    done
+    gcc -o ${VGPU}/libvgpucompat.so -shared -fPIC -O2 -s -Wall "$BASEDIR/patches/cvgpu.c"
+    echo "libvgpucompat.so 0755 VGX_LIB NATIVE MODULE:vgpu" >> ${VGPU}/.manifest
+    for s in nvidia-vgpu-mgr nvidia-vgpud
+    do
+        $CP ${VGPUa}/${s} ${VGPU}/
+        sed -e "s/${va//./\\.}/${vb}/g" -i ${VGPU}/${s}
+        patchelf --add-needed libvgpucompat.so ${VGPU}/${s}
+    done
+    set +x
+#    blobpatch ${VGPU}/libnvidia-vgpu.so.${vb} "$BASEDIR/patches/libnvidia-vgpu.so.${vb}.diff" || exit 1
+else
+    echo "WARNING: skipping frankenstein setup as ${VGPU} already exists"
+    echo -e "${VGPU}/libvgpucompat.so: $BASEDIR/patches/cvgpu.c\n\tgcc -o \$@ -shared -fPIC -O2 -s -Wall \$<" | make -f - || die "build of libvgpucompat.so failed"
+fi
+
 $DO_VGPU && extract ${VGPU}.run
 $DO_GRID && {
     if $SWITCH_GRID_TO_GNRL; then
@@ -461,6 +503,9 @@ echo 'OBJECT_FILES_NON_STANDARD_nv_hooks.o := y' >> ${TARGET}/kernel/nvidia/nvid
 sed -i ${TARGET}/.manifest -e '/^kernel\/nvidia\/i2c_nvswitch.c / a \
 kernel/unlock/nv_hooks.c 0644 KERNEL_MODULE_SRC INHERIT_PATH_DEPTH:1 MODULE:vgpu'
 echo
+if [ -e patches/blob-${VER_BLOB}.diff ]; then
+    blobpatch ${TARGET}/kernel/nvidia/nv-kernel.o_binary patches/blob-${VER_BLOB}.diff || exit 1
+fi
 applypatch ${TARGET} setup-vup-hooks.patch
 applypatch ${TARGET} filter-for-nvrm-logs.patch
 $NVGPLOPTPATCH && {
@@ -487,14 +532,7 @@ $DO_LIBS && {
 
 if $DO_VGPU; then
     if $SPOOF_DEVID; then
-        which patchelf &>/dev/null || die "patchelf not found"
-        gcc -o ${TARGET}/libvgpucompat.so -shared -fPIC -O2 -s -Wall "$BASEDIR/patches/cvgpu.c" || die "failed to build libvgpucompat.so"
-        echo "libvgpucompat.so 0755 VGX_LIB NATIVE MODULE:vgpu" >> ${TARGET}/.manifest
-        for s in nvidia-vgpu-mgr nvidia-vgpud
-        do
-            patchelf --add-needed libvgpucompat.so ${TARGET}/${s}
-        done
-        #sed -e 's/\(enable_spoof_devid\)=./\1=1/' -i ${TARGET}/libvgpucompat.so
+        sed -e 's/\(enable_spoof_devid\)=./\1=1/' -i ${TARGET}/libvgpucompat.so
     fi
     applypatch ${TARGET} vgpu-kvm-nvidia-535.54-compat.patch
     applypatch ${TARGET} workaround-for-cards-with-inforom-error.patch
