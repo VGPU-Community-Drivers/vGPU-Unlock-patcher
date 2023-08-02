@@ -202,7 +202,7 @@ typedef struct
 
 //#define DO_FIXUPS
 static int dbg_trace_level = 0;
-static volatile char spoof_devid_opt[] = "enable_spoof_devid=1";
+static volatile char spoof_devid_opt[] = "enable_spoof_devid=0";
 
 static uint32_t ioctl_fixups[][3] = {
 #ifdef DO_FIXUPS
@@ -298,63 +298,71 @@ int ioctl(int fd, int request, void *data)
           return ret;
       }
   }
-
-  if ((uint32_t)request == _IOWR(NV_IOCTL_MAGIC, NV_ESC_RM_ALLOC, NVOS21_PARAMETERS)) {
-      NVOS21_PARAMETERS_535 *np_new;
-      NVOS21_PARAMETERS *np_old = data;
-      np_new = malloc(sizeof(NVOS21_PARAMETERS_535));
-      if (np_new != NULL) {
-          np_new->hRoot = np_old->hRoot;
-          np_new->hObjectParent = np_old->hObjectParent;
-          np_new->hObjectNew = np_old->hObjectNew;
-          np_new->hClass = np_old->hClass;
-          np_new->pAllocParms = np_old->pAllocParms;
-          np_new->paramsSize = 0;
-          np_new->status = np_old->status;
-
-          ret = real_ioctl(fd, _IOWR(NV_IOCTL_MAGIC, NV_ESC_RM_ALLOC, NVOS21_PARAMETERS_535), np_new);
-
-          np_old->hRoot = np_new->hRoot;
-          np_old->hObjectParent = np_new->hObjectParent;
-          np_old->hObjectNew = np_new->hObjectNew;
-          np_old->hClass = np_new->hClass;
-          np_old->pAllocParms = np_new->pAllocParms;
-          np_old->status = np_new->status;
-          free(np_new);
-          return ret;
-      }
-  }
-
-  if ((uint32_t)request == _IOWR(NV_IOCTL_MAGIC, NV_ESC_RM_ALLOC, NVOS64_PARAMETERS)) {
-      NVOS64_PARAMETERS_535 *np_new;
-      NVOS64_PARAMETERS *np_old = data;
-      np_new = malloc(sizeof(NVOS64_PARAMETERS_535));
-      if (np_new != NULL) {
-          np_new->hRoot = np_old->hRoot;
-          np_new->hObjectParent = np_old->hObjectParent;
-          np_new->hObjectNew = np_old->hObjectNew;
-          np_new->hClass = np_old->hClass;
-          np_new->pAllocParms = np_old->pAllocParms;
-          np_new->pRightsRequested = np_old->pRightsRequested;
-          np_new->paramsSize = 0;
-          np_new->flags = np_old->flags;
-          np_new->status = np_old->status;
-
-          ret = real_ioctl(fd, _IOWR(NV_IOCTL_MAGIC, NV_ESC_RM_ALLOC, NVOS64_PARAMETERS_535), np_new);
-
-          np_old->hRoot = np_new->hRoot;
-          np_old->hObjectParent = np_new->hObjectParent;
-          np_old->hObjectNew = np_new->hObjectNew;
-          np_old->hClass = np_new->hClass;
-          np_old->pAllocParms = np_new->pAllocParms;
-          np_old->pRightsRequested = np_new->pRightsRequested;
-          np_old->flags = np_new->flags;
-          np_old->status = np_new->status;
-          free(np_new);
-          return ret;
-      }
-  }
 #endif
+
+/*
+ * https://github.com/NVIDIA/open-gpu-kernel-modules/src/nvidia/generated/g_allclasses.h
+ */
+#define MAXWELL_CHANNEL_GPFIFO_A                 (0x0000b06f)
+#define VOLTA_CHANNEL_GPFIFO_A                   (0x0000c36f)
+#define PASCAL_CHANNEL_GPFIFO_A                  (0x0000c06f)
+#define TURING_CHANNEL_GPFIFO_A                  (0x0000c46f)
+
+  if ((uint32_t)request == _IOWR(NV_IOCTL_MAGIC, NV_ESC_RM_ALLOC, NVOS21_PARAMETERS_535)) {
+      NVOS21_PARAMETERS_535 *np = data;
+      void *op;
+      if (dbg_trace_level >= 3)
+          syslog(LOG_INFO, "ioctl_request NV_ESC_RM_ALLOC NVOS21 hClass=0x%04x pAllocParms=%p paramsSize=0x%02x\n", np->hClass, np->pAllocParms, np->paramsSize);
+      switch (np->hClass) {
+      case MAXWELL_CHANNEL_GPFIFO_A:
+      case VOLTA_CHANNEL_GPFIFO_A:
+      case PASCAL_CHANNEL_GPFIFO_A:
+      case TURING_CHANNEL_GPFIFO_A:
+          op = np->pAllocParms;
+          np->pAllocParms = calloc(1, 0x130 + 4 * 3 * 2 + 4 * 8);
+          // ^^-- !! git diff 535.54.03..535.86.05 -- src/common/sdk/nvidia/inc/alloc/alloc_channel.h
+          //         libnvidia-vgpu.so.535.86.05: _nv009201vgpu(): memset(v28, 0, 0x130uLL);
+          memcpy(np->pAllocParms, op, 0x130);
+          ret = real_ioctl(fd, _IOWR(NV_IOCTL_MAGIC, NV_ESC_RM_ALLOC, NVOS21_PARAMETERS_535), np);
+          memcpy(op, np->pAllocParms, 0x130);
+          np->pAllocParms = op;
+          break;
+      default:
+          ret = real_ioctl(fd, _IOWR(NV_IOCTL_MAGIC, NV_ESC_RM_ALLOC, NVOS21_PARAMETERS_535), np);
+          break;
+      }
+      if (dbg_trace_level >= 3)
+          syslog(np->status == 0 ? LOG_INFO : LOG_ERR, "\\_>> ret=%d paramsSize 0x%02x status=0x%02x\n", ret, np->paramsSize, np->status);
+      return ret;
+  }
+
+  if ((uint32_t)request == _IOWR(NV_IOCTL_MAGIC, NV_ESC_RM_ALLOC, NVOS64_PARAMETERS_535)) {
+      NVOS64_PARAMETERS_535 *np = data;
+      void *op;
+      if (dbg_trace_level >= 3)
+          syslog(LOG_INFO, "ioctl_request NV_ESC_RM_ALLOC NVOS64 hClass=0x%04x pAllocParms=%p paramsSize=0x%02x\n", np->hClass, np->pAllocParms, np->paramsSize);
+      switch (np->hClass) {
+      case MAXWELL_CHANNEL_GPFIFO_A:
+      case VOLTA_CHANNEL_GPFIFO_A:
+      case PASCAL_CHANNEL_GPFIFO_A:
+      case TURING_CHANNEL_GPFIFO_A:
+          op = np->pAllocParms;
+          np->pAllocParms = calloc(1, 0x130 + 4 * 3 * 2 + 4 * 8);
+          // ^^-- !! git diff 535.54.03..535.86.05 -- src/common/sdk/nvidia/inc/alloc/alloc_channel.h
+          //         libnvidia-vgpu.so.535.86.05: _nv009201vgpu(): memset(v28, 0, 0x130uLL);
+          memcpy(np->pAllocParms, op, 0x130);
+          ret = real_ioctl(fd, _IOWR(NV_IOCTL_MAGIC, NV_ESC_RM_ALLOC, NVOS64_PARAMETERS_535), np);
+          memcpy(op, np->pAllocParms, 0x130);
+          np->pAllocParms = op;
+          break;
+      default:
+          ret = real_ioctl(fd, _IOWR(NV_IOCTL_MAGIC, NV_ESC_RM_ALLOC, NVOS64_PARAMETERS_535), np);
+          break;
+      }
+      if (dbg_trace_level >= 3)
+          syslog(np->status == 0 ? LOG_INFO : LOG_ERR, "\\_>> ret=%d paramsSize 0x%02x status=0x%02x\n", ret, np->paramsSize, np->status);
+      return ret;
+  }
 
   if ((uint32_t)request == REQ_QUERY_GPU) {
     iodata = (iodata_t *)data;
