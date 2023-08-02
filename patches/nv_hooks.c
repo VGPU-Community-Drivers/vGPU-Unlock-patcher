@@ -258,6 +258,14 @@ static struct vup_patch_item vup_diff_merged[] = {
 };
 VUP_PATCH_DEF(merged, VUP_MERGED_DRIVER, 1, 1);
 
+static struct vup_patch_item vup_diff_swrlwar[] = {
+	{ 0x00445C1B, 0x91, 0xAA },
+	{ 0x00445CC9, 0x44, 0x90 },
+	{ 0x00445CCA, 0x89, 0x31 },
+	{ 0x00445CCB, 0xE8, 0xC0 },
+};
+VUP_PATCH_DEF(swrlwar, 0, 1, 1);
+
 static struct vup_patch_item vup_diff_fbcon[] = {
 	{ 0x00A6FD80, 0x84, 0x30 },
 };
@@ -281,6 +289,7 @@ struct vup_patch_info *vup_patches[] = {
 	VUP_PATCH(kunlock),
 	VUP_PATCH(qmode),
 	VUP_PATCH(merged),
+	VUP_PATCH(swrlwar),
 	VUP_PATCH(fbcon),
 	VUP_PATCH(sunlock),
 	VUP_PATCH(gspvgpu),
