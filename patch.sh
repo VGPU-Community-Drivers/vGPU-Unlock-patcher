@@ -332,6 +332,7 @@ if [ ! -d "${VGPU}" ]; then
         sed -e "s/${va//./\\.}/${vb}/g" -i ${VGPU}/${s}
         patchelf --add-needed libvgpucompat.so ${VGPU}/${s}
     done
+    patchelf --add-needed libvgpucompat.so ${VGPU}/nvidia-smi
     set +x
 #    blobpatch ${VGPU}/libnvidia-vgpu.so.${vb} "$BASEDIR/patches/libnvidia-vgpu.so.${vb}.diff" || exit 1
 else
