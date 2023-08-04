@@ -301,12 +301,14 @@ int ioctl(int fd, int request, void *data)
 #endif
 
 /*
- * https://github.com/NVIDIA/open-gpu-kernel-modules/src/nvidia/generated/g_allclasses.h
+ * https://github.com/NVIDIA/open-gpu-kernel-modules/blob/main/src/nvidia/generated/g_allclasses.h
  */
 #define MAXWELL_CHANNEL_GPFIFO_A                 (0x0000b06f)
 #define VOLTA_CHANNEL_GPFIFO_A                   (0x0000c36f)
 #define PASCAL_CHANNEL_GPFIFO_A                  (0x0000c06f)
 #define TURING_CHANNEL_GPFIFO_A                  (0x0000c46f)
+#define AMPERE_CHANNEL_GPFIFO_A                  (0x0000c56f)
+#define HOPPER_CHANNEL_GPFIFO_A                  (0x0000c86f)
 
   if ((uint32_t)request == _IOWR(NV_IOCTL_MAGIC, NV_ESC_RM_ALLOC, NVOS21_PARAMETERS_535)) {
       NVOS21_PARAMETERS_535 *np = data;
@@ -318,10 +320,12 @@ int ioctl(int fd, int request, void *data)
       case VOLTA_CHANNEL_GPFIFO_A:
       case PASCAL_CHANNEL_GPFIFO_A:
       case TURING_CHANNEL_GPFIFO_A:
+      case AMPERE_CHANNEL_GPFIFO_A:
+      case HOPPER_CHANNEL_GPFIFO_A:
           op = np->pAllocParms;
           np->pAllocParms = calloc(1, 0x130 + 4 * 3 * 2 + 4 * 8);
           // ^^-- !! git diff 535.54.03..535.86.05 -- src/common/sdk/nvidia/inc/alloc/alloc_channel.h
-          //         libnvidia-vgpu.so.535.86.05: _nv009201vgpu(): memset(v28, 0, 0x130uLL);
+          //         libnvidia-vgpu.so.535.54.03: _nv009201vgpu(): memset(v28, 0, 0x130uLL);
           memcpy(np->pAllocParms, op, 0x130);
           ret = real_ioctl(fd, _IOWR(NV_IOCTL_MAGIC, NV_ESC_RM_ALLOC, NVOS21_PARAMETERS_535), np);
           memcpy(op, np->pAllocParms, 0x130);
@@ -346,10 +350,12 @@ int ioctl(int fd, int request, void *data)
       case VOLTA_CHANNEL_GPFIFO_A:
       case PASCAL_CHANNEL_GPFIFO_A:
       case TURING_CHANNEL_GPFIFO_A:
+      case AMPERE_CHANNEL_GPFIFO_A:
+      case HOPPER_CHANNEL_GPFIFO_A:
           op = np->pAllocParms;
           np->pAllocParms = calloc(1, 0x130 + 4 * 3 * 2 + 4 * 8);
           // ^^-- !! git diff 535.54.03..535.86.05 -- src/common/sdk/nvidia/inc/alloc/alloc_channel.h
-          //         libnvidia-vgpu.so.535.86.05: _nv009201vgpu(): memset(v28, 0, 0x130uLL);
+          //         libnvidia-vgpu.so.535.54.03: _nv009201vgpu(): memset(v28, 0, 0x130uLL);
           memcpy(np->pAllocParms, op, 0x130);
           ret = real_ioctl(fd, _IOWR(NV_IOCTL_MAGIC, NV_ESC_RM_ALLOC, NVOS64_PARAMETERS_535), np);
           memcpy(op, np->pAllocParms, 0x130);
