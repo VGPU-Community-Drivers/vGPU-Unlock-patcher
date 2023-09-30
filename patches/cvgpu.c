@@ -258,6 +258,7 @@ int ioctl(int fd, int request, void *data)
 {
   static ioctl_t real_ioctl = 0;
   static int spoof_devid_enabled = -1;
+  static unsigned spoof_devid_override = 0;
   void *old_buff = NULL;
   void *new_buff = NULL;
   iodata_t *iodata;
@@ -265,8 +266,15 @@ int ioctl(int fd, int request, void *data)
   int i;
   uint32_t *iofp;
 
-  if (!real_ioctl)
+  if (!real_ioctl) {
+    char *str = getenv("SPOOF_DEVID_OVERRIDE");
+    if (str != NULL) {
+        unsigned val = strtoul(str, NULL, 0);
+        spoof_devid_override = val;
+        spoof_devid_enabled = val ? 1 : 0;
+    }
     real_ioctl = dlsym(RTLD_NEXT, "ioctl");
+  }
   if (spoof_devid_enabled < 0)
     spoof_devid_enabled = spoof_devid_opt[strlen((char *)spoof_devid_opt) - 1] == '1' ? 1 : 0;
 
@@ -537,6 +545,11 @@ int ioctl(int fd, int request, void *data)
     // Ampere
     if (0x2200 <= actual_devid && actual_devid <= 0x2600) {
       spoofed_devid = 0x2230; // RTX A6000
+    }
+    if (spoof_devid_override) {
+        if ((spoof_devid_override >> 16) != 0)
+            spoofed_devid = (spoof_devid_override >> 16);
+        spoofed_subsysid = spoof_devid_override & 0xffff;
     }
     * devid_ptr = spoofed_devid;
     * subsysid_ptr = spoofed_subsysid;
