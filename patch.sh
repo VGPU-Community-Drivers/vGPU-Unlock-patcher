@@ -274,7 +274,7 @@ blobpatch() {
 
 applypatch() {
     echo "applypatch ${2} ${3}"
-    patch -d ${1} -p1 --no-backup-if-mismatch ${3} < "$BASEDIR/patches/${2}"
+    patch -d ${1} -p1 --no-backup-if-mismatch -f ${3} < "$BASEDIR/patches/${2}"
     echo
 }
 
