@@ -16,6 +16,7 @@ GRID="NVIDIA-Linux-x86_64-535.86.05-grid"
 #WSYS="NVIDIA-Windows-x86_64-535.98"
 #WSYS="NVIDIA-Windows-x86_64-536.23"
 WSYS="NVIDIA-Windows-x86_64-536.25"
+FRANKENSTEIN=true
 
 KLOGT=true
 TESTSIGN=true
@@ -297,8 +298,8 @@ $SETUP_TESTSIGN && {
         -eku 1.3.6.1.5.5.7.3.3 -m 36 -sv wtestsign/test-spc.pvk -p12 wtestsign/wsys-test-cert.pfx P@ss0wrd wtestsign/test-spc.cer &>/dev/null || die "makecert Test SPC failed"
 }
 
-echo "WARNING: this is highly experimental frankenstein setup for vgpu drivers!"
-if [ ! -d "${VGPU}" ]; then
+$FRANKENSTEIN && if [ ! -d "${VGPU}" ]; then
+    echo "WARNING: this is highly experimental frankenstein setup for vgpu drivers!"
     VGPUa="NVIDIA-Linux-x86_64-535.54.06-vgpu-kvm"
     VGPUb="NVIDIA-Linux-x86_64-535.86.05"
     va=`echo ${VGPUa} | awk -F- '{print $4}'`
@@ -533,6 +534,15 @@ $DO_LIBS && {
 
 if $DO_VGPU; then
     if $SPOOF_DEVID; then
+        $FRANKENSTEIN || {
+            which patchelf &>/dev/null || die "patchelf not found"
+            gcc -o ${TARGET}/libvgpucompat.so -shared -fPIC -O2 -s -Wall "$BASEDIR/patches/cvgpu.c" || die "failed to build libvgpucompat.so"
+            echo "libvgpucompat.so 0755 VGX_LIB NATIVE MODULE:vgpu" >> ${TARGET}/.manifest
+            for s in nvidia-vgpu-mgr nvidia-vgpud
+            do
+                patchelf --add-needed libvgpucompat.so ${TARGET}/${s}
+            done
+        }
         sed -e 's/\(enable_spoof_devid\)=./\1=1/' -i ${TARGET}/libvgpucompat.so
     fi
     applypatch ${TARGET} vgpu-kvm-nvidia-535.54-compat.patch
