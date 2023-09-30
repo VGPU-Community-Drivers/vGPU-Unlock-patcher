@@ -123,7 +123,7 @@ uint8_t *find_xref32(const uint8_t *buf, int bufsize,
                 return (uint8_t *)ni;
             isize -= ni - ci + 1;
             ci += ni - ci + 1;
-        } while (isize >= ipsize);
+        } while (isize >= ipsize + sizeof(uint32_t));
         csize -= np - cp + 1;
         cp += np - cp + 1;
     } while (csize >= nlen);
