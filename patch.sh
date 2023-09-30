@@ -410,7 +410,8 @@ if $DO_MRGD; then
     $CP ${VGPU}/. ${SOURCE}
     rm ${SOURCE}/libnvidia-ml.so.${VER_VGPU}
     $CP ${GRID}/. ${SOURCE}
-    for i in LICENSE kernel/nvidia/nvidia-sources.Kbuild init-scripts/{post-install,pre-uninstall} nvidia-bug-report.sh kernel/nvidia/nv-kernel.o_binary
+    rm -rf ${SOURCE}/firmware
+    for i in LICENSE kernel/nvidia/nvidia-sources.Kbuild init-scripts/{post-install,pre-uninstall} nvidia-bug-report.sh kernel/nvidia/nv-kernel.o_binary firmware
     do
         $CP -f ${VGPU}/$i ${SOURCE}/$i
     done
