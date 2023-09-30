@@ -12,9 +12,9 @@
 #include <wchar.h>
 #include <assert.h>
 
-#define NFUNCS 3
+#define NFUNCS 4
 static const wchar_t crypt32_dll[] = L"crypt32.dll";
-static const char *crypt32_fns[NFUNCS] = { "CryptMsgClose", "CertCloseStore", "CertFreeCertificateContext" };
+static const char *crypt32_fns[NFUNCS] = { "CryptQueryObject", "CryptMsgClose", "CertCloseStore", "CertFreeCertificateContext" };
 static const uint8_t *crypt32_fps[NFUNCS];
 
 static const uint8_t lea_rcx[] = { 0x48, 0x8d, 0x0d };
