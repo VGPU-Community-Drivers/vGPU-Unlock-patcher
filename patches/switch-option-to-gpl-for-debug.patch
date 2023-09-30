@@ -24,3 +24,31 @@ index 656382c..24d703b 100644
  
  #endif
  #if defined(MODULE_INFO)
+diff --git a/kernel/nvidia/nv-vgpu-vfio-interface.c b/kernel/nvidia/nv-vgpu-vfio-interface.c
+index 4efb319..57923ff 100644
+--- a/kernel/nvidia/nv-vgpu-vfio-interface.c
++++ b/kernel/nvidia/nv-vgpu-vfio-interface.c
+@@ -270,7 +270,11 @@ NV_STATUS nvidia_vgpu_vfio_set_ops(vgpu_vfio_ops_t *ops)
+     vgpu_vfio_ops = ops;
+     return NV_OK;
+ }
++#if !defined(FORCE_GPL_FOR_EXPERIMENTING)
+ EXPORT_SYMBOL(nvidia_vgpu_vfio_set_ops);
++#else
++EXPORT_SYMBOL_GPL(nvidia_vgpu_vfio_set_ops);
++#endif
+ 
+ NV_STATUS nvidia_vgpu_vfio_get_ops(rm_vgpu_vfio_ops_t *ops)
+ {
+@@ -293,7 +297,11 @@ NV_STATUS nvidia_vgpu_vfio_get_ops(rm_vgpu_vfio_ops_t *ops)
+ 
+     return NV_OK;
+ }
++#if !defined(FORCE_GPL_FOR_EXPERIMENTING)
+ EXPORT_SYMBOL(nvidia_vgpu_vfio_get_ops);
++#else
++EXPORT_SYMBOL_GPL(nvidia_vgpu_vfio_get_ops);
++#endif
+ 
+ static void revive_vfs(struct pci_dev *pci_dev)
+ {
