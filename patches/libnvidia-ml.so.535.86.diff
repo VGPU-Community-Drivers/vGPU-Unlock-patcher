@@ -1,8 +1,0 @@
-cf770af26f7b1b5099eca5bea01840646b681182741c6c6619f0e6e384a9afde
-
-# From: NULLderef <NULLderef@localhost.localdomain>
-# Subject: [PATCH] fix nvidia-smi process list in merged driver
-00086C63: 0F 90
-00086C64: 84 E9
-
-67f5c92ac0d56402c11981ee0b12a1c07001698a3790adc9f8e513b83aa679cb

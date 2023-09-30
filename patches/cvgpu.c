@@ -306,7 +306,6 @@ int ioctl(int fd, int request, void *data)
           return ret;
       }
   }
-#endif
 
 /*
  * https://github.com/NVIDIA/open-gpu-kernel-modules/blob/main/src/nvidia/generated/g_allclasses.h
@@ -377,6 +376,7 @@ int ioctl(int fd, int request, void *data)
           syslog(np->status == 0 ? LOG_INFO : LOG_ERR, "\\_>> ret=%d paramsSize 0x%02x status=0x%02x\n", ret, np->paramsSize, np->status);
       return ret;
   }
+#endif
 
   if ((uint32_t)request == REQ_QUERY_GPU) {
     iodata = (iodata_t *)data;
