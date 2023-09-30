@@ -537,7 +537,6 @@ if $DO_VGPU; then
     fi
     applypatch ${TARGET} vgpu-kvm-nvidia-535.54-compat.patch
     applypatch ${TARGET} workaround-for-cards-with-inforom-error.patch
-    applypatch ${TARGET} vcfg-v15vcs.patch
     applypatch ${TARGET} vcfg-testing.patch
     applypatch ${TARGET} verbose-firmware-load.patch
     vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1E84 0x0000	# RTX 2070 super 8GB
