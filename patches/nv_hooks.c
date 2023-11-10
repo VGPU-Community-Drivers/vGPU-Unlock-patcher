@@ -23,6 +23,10 @@
 #define X86_CR4_CET_BIT 23
 #endif
 
+#ifndef STACK_FRAME_NON_STANDARD
+#define STACK_FRAME_NON_STANDARD(f)
+#endif
+
 #ifndef VUP_MERGED_DRIVER
 #define VUP_MERGED_DRIVER 0
 #endif
