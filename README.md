@@ -61,7 +61,6 @@ Please see commits history [here](https://github.com/VGPU-Community-Drivers/vGPU
 
 ### Other Options 
 - any options need to be put before the target name
-- `--lk6-patches` include compat patches for kernel versions >= 6.1
 - `--repack` option that can be used to create unlocked/patched `.run` file (usually not necessary as you can simply start nvidia-installer from the directory).
 
 ### Credits
