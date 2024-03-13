@@ -56,12 +56,28 @@ This repository contains a submodule, so please clone this project recursively, 
       ./patch.sh wsys
       ```
 
+4. Change directory into the output folder (ending with `-patched`) to install the patched driver:
+      ```shell
+      ./nvidia-installer --dkms
+      ```
+   If you have installed the driver before, the command above might fail, with the error log mentioning some services are still running. In that case, manually stop then with `systemctl stop nvidia*.service` and try again.
+
+5. Optionally, if you want to override existing profiles, you can edit `/usr/share/nvidia/vgpu/vgpuConfig.xml`. The change will take effect after reboot or driver reloading.
+
+   [Formula](https://discord.com/channels/829786927829745685/1162008346551926824/1171897739576086650) for overriding `profileSize` for X GiB of VRAM (X >= 1):
+   ```
+   profileSize = X * 0x40000000
+   fbReservation = 0x8000000 + (profileSize - 0x40000000) / 0x10
+   framebuffer = profileSize - fbReservation
+   ```
+
+   The minimal `profileSize` was [reported to be 384 MiB](https://discord.com/channels/829786927829745685/1162008346551926824/1168010185181249597). 
+
 ## Changelog
 Please see commits history [here](https://github.com/VGPU-Community-Drivers/vGPU-Unlock-patcher/commits/).
 
 ### Other Options 
 - any options need to be put before the target name
-- `--lk6-patches` include compat patches for kernel versions >= 6.1
 - `--repack` option that can be used to create unlocked/patched `.run` file (usually not necessary as you can simply start nvidia-installer from the directory).
 
 ### Credits
