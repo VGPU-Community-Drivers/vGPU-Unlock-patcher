@@ -9,7 +9,7 @@ This repository contains a submodule, so please clone this project recursively, 
 
 1. download original vgpu kvm `.run` files as available in a grid package `.zip` release, use the version matching the name of chosen branch of this project (the latest one is recommended)
    - versions of vgpu releases are listed [here](https://docs.nvidia.com/grid/index.html)
-   - downloads are available from nvidia site [here](http://nvid.nvidia.com/dashboard/), evaluation account may be obtained [here](http://www.nvidia.com/object/vgpu-evaluation.html)
+   - downloads are available from nvidia site [here](https://nvid.nvidia.com/dashboard/), evaluation account may be obtained [here](https://www.nvidia.com/object/vgpu-evaluation.html)
    - if you need merged driver, download also standard linux desktop driver .run file, the version as set in GNRL in the beginning of the patch.sh script
 
 2. optionally edit `patch.sh` file to add support for your gpu if it was not included yet
