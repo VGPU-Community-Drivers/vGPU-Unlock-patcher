@@ -554,18 +554,18 @@ if $DO_VGPU; then
     applypatch ${TARGET} vcfg-testing.patch
     applypatch ${TARGET} verbose-firmware-load.patch
     vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1E07 0x0000	# RTX 2080 Ti
-    vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1E81 0x0000	# RTX 2080 super 8GB
     vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1E84 0x0000	# RTX 2070 super 8GB
-    vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1F03 0x0000	# RTX 2060 12GB
-    vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1F11 0x0000	# RTX 2060 Mobile 6GB
+    vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1E81 0x0000	# RTX 2080 super 8GB
+    vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1f03 0x0000	# RTX 2060 12GB
+    vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1f11 0x0000	# RTX 2060 Mobile 6GB
     vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x2184 0x0000	# GTX 1660 6GB
-    vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1F95 0x0000	# GTX 1650 Ti Mobile 4GB
+    vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1f95 0x0000	# GTX 1650 Ti Mobile 4GB
     vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1EB1 0x0000	# Quadro RTX 4000
-    vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1FF2 0x0000	# Quadro T400 4GB
+    vcfgclone ${TARGET}/vgpuConfig.xml 0x1E30 0x12BA 0x1ff2 0x0000	# Quadro T400 4GB
+    vcfgclone ${TARGET}/vgpuConfig.xml 0x1B38 0x0 0x1C82 0x0000		# GTX 1050 Ti 4GB
     vcfgclone ${TARGET}/vgpuConfig.xml 0x1B38 0x0 0x1B00 0x0000		# TITAN X
     vcfgclone ${TARGET}/vgpuConfig.xml 0x1B38 0x0 0x1B06 0x0000		# GTX 1080 Ti
     vcfgclone ${TARGET}/vgpuConfig.xml 0x1B38 0x0 0x1B81 0x0000		# GTX 1070
-    vcfgclone ${TARGET}/vgpuConfig.xml 0x1B38 0x0 0x1C82 0x0000		# GTX 1050 Ti 4GB
     vcfgclone ${TARGET}/vgpuConfig.xml 0x1B38 0x0 0x1D01 0x0000		# GTX 1030 -> Tesla P40
     vcfgclone ${TARGET}/vgpuConfig.xml 0x13F2 0x0 0x17FD 0x0000		# Tesla M40 -> Tesla M60
     vcfgclone ${TARGET}/vgpuConfig.xml 0x13F2 0x0 0x13C0 0x0000		# GTX 980 -> Tesla M60
